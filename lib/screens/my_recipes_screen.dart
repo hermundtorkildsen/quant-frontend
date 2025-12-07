@@ -28,7 +28,28 @@ String? _getOriginLabel(Recipe recipe) {
   return null;
 }
 
-/// Reusable widget that displays origin and category chips for a recipe.
+String? _importLabel(String? importMethod) {
+  if (importMethod == null) return null;
+  if (importMethod == 'calculator') {
+    return 'Fra pizzakalkulator';
+  }
+
+  final isTextImport = importMethod == 'text' ||
+      importMethod == 'plain_text' ||
+      importMethod == 'stub';
+
+  if (isTextImport) {
+    return 'Importert fra tekst';
+  }
+
+  if (importMethod == 'manual') {
+    return 'Manuelt opprettet';
+  }
+
+  return 'Manuelt opprettet';
+}
+
+/// Reusable widget that displays import method and category chips for a recipe.
 class RecipeOriginAndCategoryChips extends StatelessWidget {
   const RecipeOriginAndCategoryChips({
     super.key,
@@ -39,9 +60,9 @@ class RecipeOriginAndCategoryChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final originLabel = _getOriginLabel(recipe);
+    final importLabel = _importLabel(recipe.metadata?.importMethod);
     final categories = recipe.metadata?.categories ?? const <String>[];
-    final hasChips = originLabel != null || categories.isNotEmpty;
+    final hasChips = importLabel != null || categories.isNotEmpty;
 
     if (!hasChips) {
       return const SizedBox.shrink();
@@ -53,9 +74,9 @@ class RecipeOriginAndCategoryChips extends StatelessWidget {
         spacing: 8,
         runSpacing: 4,
         children: [
-          if (originLabel != null)
+          if (importLabel != null)
             Chip(
-              label: Text(originLabel),
+              label: Text(importLabel),
               visualDensity: VisualDensity.compact,
             ),
           for (final category in categories)
@@ -535,6 +556,59 @@ class _TagFilterRow extends StatelessWidget {
   }
 }
 
+Widget _buildRecipeLeadingImage(BuildContext context, String? imageUrl) {
+  final hasImage = imageUrl != null && imageUrl.trim().isNotEmpty;
+  final borderRadius = BorderRadius.circular(12);
+  const imageSize = 56.0;
+
+  if (hasImage) {
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: Image.network(
+        imageUrl!,
+        width: imageSize,
+        height: imageSize,
+        fit: BoxFit.cover,
+        errorBuilder: (context, _, __) {
+          return Container(
+            width: imageSize,
+            height: imageSize,
+            decoration: BoxDecoration(
+              borderRadius: borderRadius,
+              border: Border.all(color: Theme.of(context).dividerColor),
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            ),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.image_not_supported_outlined,
+              size: 20,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // Placeholder for oppskrifter uten bilde
+  return ClipRRect(
+    borderRadius: borderRadius,
+    child: Container(
+      width: imageSize,
+      height: imageSize,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        borderRadius: borderRadius,
+        border: Border.all(color: Theme.of(context).dividerColor),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      ),
+      child: const Icon(
+        Icons.image_not_supported_outlined,
+        size: 20,
+      ),
+    ),
+  );
+}
+
 class _RecipeListTile extends StatelessWidget {
   const _RecipeListTile({
     required this.recipe,
@@ -558,29 +632,7 @@ class _RecipeListTile extends StatelessWidget {
       child: ListTile(
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        leading: imageUrl == null || imageUrl.isEmpty
-            ? null
-            : ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  imageUrl,
-                  width: 56,
-                  height: 56,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, _, __) {
-                    return Container(
-                      width: 56,
-                      height: 56,
-                      color: Colors.black.withOpacity(0.04),
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.image_not_supported_outlined,
-                        size: 20,
-                      ),
-                    );
-                  },
-                ),
-              ),
+        leading: _buildRecipeLeadingImage(context, imageUrl),
         title: Text(
           recipe.title,
           style: textTheme.titleMedium?.copyWith(

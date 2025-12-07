@@ -205,7 +205,7 @@ class _InputSection extends StatelessWidget {
   }
 }
 
-class _NumberInput extends StatelessWidget {
+class _NumberInput extends StatefulWidget {
   const _NumberInput({
     required this.label,
     required this.value,
@@ -217,20 +217,39 @@ class _NumberInput extends StatelessWidget {
   final ValueChanged<double> onChanged;
 
   @override
+  State<_NumberInput> createState() => _NumberInputState();
+}
+
+class _NumberInputState extends State<_NumberInput> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: widget.value.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), ''),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final controller = TextEditingController(text: value.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), ''));
-    
     return TextField(
-      controller: controller,
+      controller: _controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       decoration: InputDecoration(
-        labelText: label,
+        labelText: widget.label,
         border: const OutlineInputBorder(),
       ),
       onChanged: (text) {
         final parsed = double.tryParse(text);
         if (parsed != null) {
-          onChanged(parsed);
+          widget.onChanged(parsed);
         }
       },
     );
