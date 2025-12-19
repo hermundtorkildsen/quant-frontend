@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../features/calculators/screens/calculators_screen.dart';
-import 'import_from_text_screen.dart';
+import 'import_recipe_screen.dart';
 import 'my_recipes_screen.dart';
 
 /// Home screen for the Quant app - entry point with main actions.
@@ -113,7 +113,7 @@ class _MainActions extends StatelessWidget {
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const ImportFromTextScreen(),
+                builder: (_) => const ImportRecipeScreen(),
               ),
             );
           },
