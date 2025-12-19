@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../backend/quant_backend.dart';
 import '../models/recipe.dart';
+import 'my_recipes_screen.dart';
 
 /// Screen for editing or creating a recipe.
 ///
@@ -201,7 +202,14 @@ class _RecipeEditScreenState extends State<RecipeEditScreen> {
         _hasUnsavedChanges = false;
       });
 
-      Navigator.of(context).pop(savedRecipe);
+      // Navigate to recipe detail screen, replacing the edit screen
+      // and clearing navigation history to prevent returning to import flow
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => RecipeDetailScreen(recipe: savedRecipe),
+        ),
+        (route) => route.isFirst,
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -285,6 +293,29 @@ class _RecipeEditScreenState extends State<RecipeEditScreen> {
                 ),
                 maxLines: 3,
               ),
+              if (widget.recipe.metadata?.sourceUrl != null &&
+                  widget.recipe.metadata!.sourceUrl!.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.link, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Kilde: ${widget.recipe.metadata!.sourceUrl}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               Row(
                 children: [

@@ -802,6 +802,29 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                   style: textTheme.bodyLarge,
                 ),
               ),
+            if (_recipe.metadata?.sourceUrl != null &&
+                _recipe.metadata!.sourceUrl!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.link,
+                      size: 16,
+                      color: textTheme.bodyMedium?.color?.withOpacity(0.7),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Kilde: ${_recipe.metadata!.sourceUrl}',
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: textTheme.bodyMedium?.color?.withOpacity(0.7),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             if (_recipe.servings != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),

@@ -31,12 +31,12 @@ class _ImportRecipeScreenState extends State<ImportRecipeScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Import recipe'),
+        title: const Text('Importer oppskrift'),
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
-            Tab(text: 'From text'),
-            Tab(text: 'From URL'),
+            Tab(text: 'Fra tekst'),
+            Tab(text: 'Fra URL'),
           ],
         ),
       ),
@@ -45,7 +45,7 @@ class _ImportRecipeScreenState extends State<ImportRecipeScreen>
         children: const [
           ImportFromTextScreen(embedded: true),
           ImportFromUrlScreen(
-            initialUrl: 'https://example.com',
+            initialUrl: '',
             embedded: true,
           ),
         ],

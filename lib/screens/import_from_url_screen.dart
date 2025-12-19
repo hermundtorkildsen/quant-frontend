@@ -25,8 +25,9 @@ class ImportFromUrlScreen extends StatefulWidget {
 class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
   late final WebViewController _controller;
   late final TextEditingController _urlController;
-  bool _isLoading = true;
+  bool _isLoading = false;
   bool _isExtracting = false;
+  bool _isImporting = false;
   bool _hasExtracted = false;
   String _currentUrl = '';
 
@@ -35,7 +36,16 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
     super.initState();
     _currentUrl = widget.initialUrl;
     _urlController = TextEditingController(text: widget.initialUrl);
+    _isLoading = false; // Don't show loading state initially
+    // Initialize WebView controller but don't load anything yet
     _initializeWebView();
+    // Only load if we have a valid initial URL
+    if (widget.initialUrl.isNotEmpty) {
+      _controller.loadRequest(Uri.parse(widget.initialUrl));
+      setState(() {
+        _isLoading = true;
+      });
+    }
   }
 
   @override
@@ -71,8 +81,7 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
             });
           },
         ),
-      )
-      ..loadRequest(Uri.parse(widget.initialUrl));
+      );
   }
 
   bool _looksLikeCookieConsentText(String text) {
@@ -321,7 +330,7 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
-                    'This page is showing a cookie consent dialog. Please accept/decline cookies on the page, then tap Load again.',
+                    'Denne siden viser en cookie-samtykkedialog. Vennligst godta eller avslå cookies på siden, og trykk deretter Last inn igjen.',
                   ),
                   duration: Duration(seconds: 5),
                 ),
@@ -346,9 +355,27 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
         // Call backend to import
         if (!mounted) return;
         
+        // Validate sourceUrl is present (required for URL imports)
+        if (_currentUrl.isEmpty) {
+          setState(() {
+            _isExtracting = false;
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Kunne ikke importere: URL mangler.'),
+            ),
+          );
+          return;
+        }
+        
+        // Set importing state to show overlay
+        setState(() {
+          _isImporting = true;
+        });
+        
         // Debug logging: inspect what is being sent to backend
         if (kDebugMode) {
-          final sourceUrl = _currentUrl.isNotEmpty ? _currentUrl : null;
           final textLength = textToImport.length;
           final textHead = textLength > 0 
               ? textToImport.substring(0, textLength > 600 ? 600 : textLength)
@@ -358,7 +385,7 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
               : textToImport;
           
           print('=== URL_IMPORT_PAYLOAD ===');
-          print('url=$sourceUrl');
+          print('url=$_currentUrl');
           print('kind=$extractedKind');
           print('len=$textLength');
           print('HEAD_START');
@@ -372,14 +399,15 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
           print('URL_IMPORT: kind=$extractedKind, payload_length=$textLength');
         }
         
+        // Always provide sourceUrl for URL imports
         final recipe = await quantBackend.importRecipeFromText(
           textToImport,
-          sourceUrl: _currentUrl.isNotEmpty ? _currentUrl : null,
+          sourceUrl: _currentUrl,
         );
 
         if (!mounted) return;
 
-        // Navigate to edit screen
+        // Navigate to edit screen (overlay will remain until navigation completes)
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => RecipeEditScreen(recipe: recipe),
@@ -389,6 +417,11 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
         debugPrint('Failed to decode or import extracted data: $e');
         debugPrint('Raw result: $jsonString');
         if (mounted) {
+          setState(() {
+            _isImporting = false;
+            _isExtracting = false;
+            _isLoading = false;
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Kunne ikke importere oppskriften. Prøv igjen.'),
@@ -400,6 +433,8 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
       debugPrint('Error extracting recipe data: $e');
       setState(() {
         _isExtracting = false;
+        _isImporting = false;
+        _isLoading = false;
       });
     }
   }
@@ -418,67 +453,122 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
           ),
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: TextField(
-              controller: _urlController,
-              decoration: const InputDecoration(
-                hintText: 'https://example.com/recipe',
-                border: OutlineInputBorder(),
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              ),
-              keyboardType: TextInputType.url,
-              textInputAction: TextInputAction.go,
-              onSubmitted: (_) => _loadUrl(),
+          Text(
+            'Lim inn lenke til oppskriften',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(width: 8),
-          FilledButton.icon(
-            onPressed: _loadUrl,
-            icon: const Icon(Icons.search, size: 20),
-            label: const Text('Load'),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            ),
+          const SizedBox(height: 4),
+          Text(
+            'Vi henter ingredienser og fremgangsmåte automatisk fra nettsiden.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _urlController,
+                  decoration: const InputDecoration(
+                    hintText: 'https://example.com/recipe',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                  keyboardType: TextInputType.url,
+                  textInputAction: TextInputAction.go,
+                  onSubmitted: (_) => _loadUrl(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                onPressed: _loadUrl,
+                icon: const Icon(Icons.search, size: 20),
+                label: const Text('Last inn'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
+  String _getStatusMessage() {
+    if (_isImporting) {
+      return 'Importerer…';
+    } else if (_isExtracting) {
+      return 'Henter oppskrift…';
+    } else if (_isLoading) {
+      return 'Laster side…';
+    }
+    return '';
+  }
+
+  bool get _isBusy => _isLoading || _isExtracting || _isImporting;
+
   Widget _buildBody() {
-    return Column(
+    return Stack(
       children: [
-        _buildUrlInput(),
-        Expanded(
-          child: Stack(
-            children: [
-              WebViewWidget(controller: _controller),
-              if (_isLoading || _isExtracting)
-                Container(
-                  color: Colors.white.withOpacity(0.9),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const CircularProgressIndicator(),
-                        const SizedBox(height: 16),
-                        Text(
-                          _isLoading ? 'Loading page…' : 'Extracting recipe…',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
+        Column(
+          children: [
+            _buildUrlInput(),
+            Expanded(
+              child: _currentUrl.isNotEmpty
+                  ? WebViewWidget(controller: _controller)
+                  : Container(
+                      color: Colors.grey.shade50,
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.link,
+                              size: 64,
+                              color: Colors.grey.shade400,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Lim inn en lenke og trykk Last inn',
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-            ],
-          ),
+            ),
+          ],
         ),
+        if (_isBusy)
+          AbsorbPointer(
+            child: Container(
+              color: Colors.white,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 16),
+                    Text(
+                      _getStatusMessage(),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -493,7 +583,7 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Import recipe'),
+        title: const Text('Importer oppskrift'),
       ),
       body: body,
     );
