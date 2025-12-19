@@ -36,8 +36,6 @@ class _QuantHomeBody extends StatelessWidget {
           _HeaderSection(),
           SizedBox(height: 32),
           _MainActions(),
-          SizedBox(height: 40),
-          _RecentSection(),
         ],
       ),
     );
@@ -216,46 +214,6 @@ class _ActionCard extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _RecentSection extends StatelessWidget {
-  const _RecentSection();
-
-  @override
-  Widget build(BuildContext context) {
-    final recentItems = const [
-      'Bolognese (example)',
-      '70% hydration pizza dough (example)',
-      'Chocolate chip cookies (example)',
-    ];
-
-    final textTheme = Theme.of(context).textTheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Nylig vist',
-          style: textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: QuantHomeScreen._textColor,
-          ),
-        ),
-        const SizedBox(height: 12),
-        ...recentItems.map(
-          (item) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              '• $item',
-              style: textTheme.bodyMedium?.copyWith(
-                color: QuantHomeScreen._textColor.withOpacity(0.85),
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

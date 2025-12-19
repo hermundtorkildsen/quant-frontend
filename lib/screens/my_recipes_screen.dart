@@ -622,7 +622,7 @@ class _RecipeListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final servingsText =
-        recipe.servings != null ? '${recipe.servings} servings' : null;
+        recipe.servings != null ? '${recipe.servings} porsjoner' : null;
     final tags = recipe.metadata?.categories ?? const <String>[];
     final imageUrl = recipe.metadata?.imageUrl;
 
@@ -806,11 +806,11 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: Text(
-                  currentServings == null
+                      currentServings == null
                       ? 'Porsjoner: ${_recipe.servings}'
                       : currentServings == _recipe.servings
                           ? 'Porsjoner: $currentServings'
-                          : 'Porsjoner: $currentServings (original: ${_recipe.servings})',
+                          : 'Porsjoner: $currentServings (opprinnelig: ${_recipe.servings})',
                   style: textTheme.bodyMedium,
                 ),
               ),
@@ -979,12 +979,12 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Delete recipe?'),
-          content: const Text('This cannot be undone.'),
+          title: const Text('Slett oppskrift?'),
+          content: const Text('Dette kan ikke angres.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
+              child: const Text('Avbryt'),
             ),
             FilledButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
@@ -992,7 +992,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                 backgroundColor: Theme.of(context).colorScheme.error,
                 foregroundColor: Theme.of(context).colorScheme.onError,
               ),
-              child: const Text('Delete'),
+              child: const Text('Slett'),
             ),
           ],
         );
@@ -1009,7 +1009,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to delete recipe: $e'),
+          content: Text('Kunne ikke slette oppskrift: $e'),
         ),
       );
     }
@@ -1600,7 +1600,7 @@ class _ScaleRecipeDialogState extends State<_ScaleRecipeDialog> {
     final textTheme = Theme.of(context).textTheme;
     final scaleFactor = _scaleFactor;
     final scaleText = scaleFactor == 1.0
-        ? '1× (original)'
+        ? '1× (opprinnelig)'
         : scaleFactor < 1.0
             ? '${scaleFactor.toStringAsFixed(1)}×'
             : '${scaleFactor.toStringAsFixed(1)}×';

@@ -8,50 +8,50 @@ final List<CalculatorCategory> calculatorCategories = [
     id: 'pizza',
     title: 'Pizza',
     icon: '🍕',
-    description: 'Dough formulas for different pizza styles',
+    description: 'Deigformler for ulike pizzastiler',
     variants: [
       CalculatorVariant(
         id: 'pizza-neapolitan',
         title: 'Neapolitan',
-        description: 'Classic Neapolitan style',
+        description: 'Klassisk neapolitansk stil',
       ),
       CalculatorVariant(
         id: 'pizza-ny',
         title: 'New York',
-        description: 'NY style pizza dough',
+        description: 'New York-stil pizzadeig',
       ),
       CalculatorVariant(
         id: 'pizza-roman',
         title: 'Roman',
-        description: 'Roman style pizza',
+        description: 'Romersk stil pizza',
       ),
       CalculatorVariant(
         id: 'pizza-detroit',
         title: 'Detroit',
-        description: 'Detroit style pan pizza',
+        description: 'Detroit-stil panne pizza',
       ),
       CalculatorVariant(
         id: 'pizza-poolish',
         title: 'Poolish',
-        description: 'Poolish preferment method',
+        description: 'Poolish forgjæringsmetode',
       ),
       CalculatorVariant(
         id: 'pizza-cold-ferment',
         title: 'Cold Ferment',
-        description: 'Long cold fermentation',
+        description: 'Lang kaldgjæring',
       ),
     ],
   ),
   CalculatorCategory(
     id: 'bread',
-    title: 'Bread',
+    title: 'Brød',
     icon: '🍞',
-    description: 'Baker\'s percentage and bread formulas',
+    description: 'Bakers prosent og brødoppskrifter',
     variants: [
       CalculatorVariant(
         id: 'bread-bakers-percent',
-        title: 'Baker\'s Percentage',
-        description: 'Calculate ingredient ratios',
+        title: 'Bakers prosent',
+        description: 'Beregn ingrediensforhold',
       ),
     ],
   ),
@@ -59,12 +59,12 @@ final List<CalculatorCategory> calculatorCategories = [
     id: 'general-tools',
     title: 'General Tools',
     icon: '🔧',
-    description: 'General purpose cooking calculators',
+    description: 'Generelle kalkulatorer for matlaging',
     variants: [
       CalculatorVariant(
         id: 'general-temperature',
         title: 'Temperature Converter',
-        description: 'Convert between Celsius, Fahrenheit, and Kelvin',
+        description: 'Konverter mellom Celsius, Fahrenheit og Kelvin',
       ),
     ],
   ),
@@ -78,14 +78,14 @@ CalculatorDefinition? getCalculatorDefinitionForVariant(String variantId) {
       return CalculatorDefinition(
         id: 'general-temperature',
         title: 'Temperature Converter',
-        description: 'Convert between Celsius, Fahrenheit, and Kelvin',
+        description: 'Konverter mellom Celsius, Fahrenheit og Kelvin',
         fields: [
           CalculatorFieldDefinition(
             id: 'celsius',
             label: 'Celsius',
             type: CalculatorFieldType.number,
             unit: '°C',
-            helpText: 'Enter temperature in Celsius',
+            helpText: 'Skriv inn temperatur i Celsius',
             onFieldChanged: (changedFieldId, newValue, allValues) {
               // When Celsius changes, update Fahrenheit and Kelvin
               if (changedFieldId == 'celsius') {
@@ -105,7 +105,7 @@ CalculatorDefinition? getCalculatorDefinitionForVariant(String variantId) {
             label: 'Fahrenheit',
             type: CalculatorFieldType.number,
             unit: '°F',
-            helpText: 'Enter temperature in Fahrenheit',
+            helpText: 'Skriv inn temperatur i Fahrenheit',
             onFieldChanged: (changedFieldId, newValue, allValues) {
               // When Fahrenheit changes, update Celsius and Kelvin
               if (changedFieldId == 'fahrenheit') {
@@ -126,7 +126,7 @@ CalculatorDefinition? getCalculatorDefinitionForVariant(String variantId) {
             label: 'Kelvin',
             type: CalculatorFieldType.number,
             unit: 'K',
-            helpText: 'Enter temperature in Kelvin',
+            helpText: 'Skriv inn temperatur i Kelvin',
             onFieldChanged: (changedFieldId, newValue, allValues) {
               // When Kelvin changes, update Celsius and Fahrenheit
               if (changedFieldId == 'kelvin') {
@@ -145,7 +145,7 @@ CalculatorDefinition? getCalculatorDefinitionForVariant(String variantId) {
         ],
         calculate: (values) {
           // Not needed for live conversion, but kept for backward compatibility
-          return 'Enter a temperature in any field to see conversions.';
+          return 'Skriv inn en temperatur i et felt for å se konverteringer.';
         },
       );
     default:

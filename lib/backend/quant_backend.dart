@@ -63,7 +63,10 @@ class QuantBackendMock implements QuantBackend {
 
 /// Global backend instance for the app. This allows the UI to use a single
 /// abstraction (`QuantBackend`) and swap implementations later.
-const bool useCloudBackend = true;
+///
+/// By default, uses Render cloud backend. To use local backend for development:
+///   flutter run --dart-define=USE_CLOUD_BACKEND=false
+const bool useCloudBackend = bool.fromEnvironment('USE_CLOUD_BACKEND', defaultValue: true);
 
 final QuantBackend quantBackend = QuantBackendHttp(
   QuantApiClient(

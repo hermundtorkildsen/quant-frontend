@@ -525,7 +525,7 @@ class _EditableIngredientWidget extends StatelessWidget {
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
                   onPressed: onDelete,
-                  tooltip: 'Delete',
+                  tooltip: 'Slett',
                 ),
               ],
             ),
@@ -589,7 +589,7 @@ class _EditableStepWidget extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  'Step ${step.stepNumber}',
+                  'Steg ${step.stepNumber}',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
@@ -599,7 +599,7 @@ class _EditableStepWidget extends StatelessWidget {
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
                   onPressed: onDelete,
-                  tooltip: 'Delete',
+                  tooltip: 'Slett',
                 ),
               ],
             ),

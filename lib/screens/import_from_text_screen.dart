@@ -148,7 +148,7 @@ class _ImportFromTextScreenState extends State<ImportFromTextScreen> {
                           child: TextField(
                             controller: _sourceUrlController,
                             decoration: InputDecoration(
-                              labelText: 'Source URL (valgfritt)',
+                              labelText: 'Kilde-URL (valgfritt)',
                               hintText: 'https://example.com/recipe',
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
