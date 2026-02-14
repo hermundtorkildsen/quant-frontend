@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:quant/screens/quant_home_screen.dart';
+import 'auth/login_screen.dart';
+import 'auth/auth_gate.dart';
 
 void main() {
   runApp(const QuantApp());
@@ -36,7 +38,7 @@ class QuantApp extends StatelessWidget {
               displayColor: _textColor,
             ),
       ),
-      home: const QuantHomeScreen(),
+      home: const AuthGate(),
     );
   }
 }

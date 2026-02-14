@@ -30,6 +30,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_secure_storage: ^9.2.2
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -49,6 +50,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.3.10
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -101,7 +103,17 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/icon/icon.png"
+  image_path: "assets/branding/quant_app_icon_1024.png"
   min_sdk_android: 21 # Android min sdk min:16, default 21
-  adaptive_icon_background: "#f7f4ef" # Optional: background color for Android adaptive icon
-  adaptive_icon_foreground: "assets/icon/icon.png" # Optional: foreground image for Android adaptive icon
+  adaptive_icon_background: "#1F2937" # Dark neutral background for Android adaptive icon
+  adaptive_icon_foreground: "assets/branding/quant_app_icon_1024.png" # Foreground image for Android adaptive icon
+
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: "assets/branding/quant_splash_logo_1024.png"
+  android: true
+  ios: true
+  android_12:
+    image: "assets/branding/quant_splash_logo_1024.png"
+    color: "#FFFFFF"
+    icon_background_color: "#FFFFFF"

@@ -350,7 +350,12 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
           }
 
           return ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 12,
+              bottom: 96,
+            ),
             itemCount: filtered.length + 1,
             separatorBuilder: (context, index) =>
                 index == 0 ? const SizedBox(height: 12) : const SizedBox(height: 8),

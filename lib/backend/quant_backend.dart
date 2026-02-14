@@ -7,6 +7,8 @@ import '../services/mock_recipe_importer.dart';
 import '../api/quant_api_client.dart';
 import '../api/quant_http_backend.dart';
 
+import '../auth/token_store.dart';
+
 /// High-level backend abstraction for the Quant app.
 ///
 /// In production this will talk to a real HTTP API / Java backend.
@@ -68,11 +70,14 @@ class QuantBackendMock implements QuantBackend {
 ///   flutter run --dart-define=USE_CLOUD_BACKEND=false
 const bool useCloudBackend = bool.fromEnvironment('USE_CLOUD_BACKEND', defaultValue: true);
 
+final TokenStore tokenStore = TokenStore();
+
 final QuantBackend quantBackend = QuantBackendHttp(
   QuantApiClient(
     baseUrl: useCloudBackend
         ? 'https://quant-backend-aism.onrender.com'
-        : 'http://10.0.2.2:8080',  // lokal hvis du vil utvikle backend senere
+        : 'http://10.0.2.2:8080',
+    tokenProvider: tokenStore.getToken,
   ),
 );
 

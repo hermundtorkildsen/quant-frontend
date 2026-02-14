@@ -22,7 +22,7 @@ class Recipe {
   final RecipeMetadata? metadata;
 
   factory Recipe.fromJson(Map<String, dynamic> json) {
-    // Handle nullable id from backend (e.g., imported recipes without id yet)
+    // Handle nullable id from backend
     final idValue = json['id'];
     final id = idValue == null
         ? DateTime.now().millisecondsSinceEpoch.toString()

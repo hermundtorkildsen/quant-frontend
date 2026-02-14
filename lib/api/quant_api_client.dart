@@ -11,18 +11,25 @@ import 'quant_api_dtos.dart';
 class QuantApiClient {
   QuantApiClient({
     required this.baseUrl,
+    required Future<String?> Function() tokenProvider,
     http.Client? httpClient,
-  }) : _http = httpClient ?? http.Client();
+  })  : _http = httpClient ?? http.Client(),
+        _tokenProvider = tokenProvider;
 
   final String baseUrl;
   final http.Client _http;
+  final Future<String?> Function() _tokenProvider;
 
   /// Get all recipes for the current user.
   ///
   /// GET /api/recipes
   Future<List<RecipeDto>> getAllRecipes() async {
     final uri = Uri.parse('$baseUrl/api/recipes');
-    final response = await _http.get(uri);
+    final response = await _http.get(
+      uri,
+      headers: await _authHeaders(),
+    );
+
 
     if (response.statusCode != 200) {
       throw Exception(
@@ -41,7 +48,11 @@ class QuantApiClient {
   /// GET /api/recipes/{id}
   Future<RecipeDto> getRecipeById(String id) async {
     final uri = Uri.parse('$baseUrl/api/recipes/$id');
-    final response = await _http.get(uri);
+    final response = await _http.get(
+      uri,
+      headers: await _authHeaders(),
+    );
+
 
     if (response.statusCode == 404) {
       throw Exception('Recipe not found: $id');
@@ -67,11 +78,9 @@ class QuantApiClient {
   Future<RecipeDto> saveRecipe(RecipeDto dto) async {
     final uri = Uri.parse('$baseUrl/api/recipes');
     final body = jsonEncode(dto.toJson());
-    final headers = {'Content-Type': 'application/json'};
-
     final response = await _http.post(
       uri,
-      headers: headers,
+      headers: await _authHeaders(json: true),
       body: body,
     );
 
@@ -90,7 +99,11 @@ class QuantApiClient {
   /// DELETE /api/recipes/{id}
   Future<void> deleteRecipe(String id) async {
     final uri = Uri.parse('$baseUrl/api/recipes/$id');
-    final response = await _http.delete(uri);
+    final response = await _http.delete(
+      uri,
+      headers: await _authHeaders(),
+    );
+
 
     if (response.statusCode == 404) {
       // Recipe not found - consider this a success (idempotent delete)
@@ -110,11 +123,9 @@ class QuantApiClient {
   Future<RecipeDto> importRecipeFromText(ImportRecipeRequestDto request) async {
     final uri = Uri.parse('$baseUrl/api/recipes/import-text');
     final body = jsonEncode(request.toJson());
-    final headers = {'Content-Type': 'application/json'};
-
     final response = await _http.post(
       uri,
-      headers: headers,
+      headers: await _authHeaders(json: true),
       body: body,
     );
 
@@ -127,6 +138,19 @@ class QuantApiClient {
     final json = jsonDecode(response.body) as Map<String, dynamic>;
     return RecipeDto.fromJson(json);
   }
+
+  Future<Map<String, String>> _authHeaders({bool json = false}) async {
+    final headers = <String, String>{};
+    if (json) headers['Content-Type'] = 'application/json';
+
+    final token = await _tokenProvider();
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    return headers;
+  }
+
+
 }
 
 

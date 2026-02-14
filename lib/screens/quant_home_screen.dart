@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../features/calculators/screens/calculators_screen.dart';
 import 'import_recipe_screen.dart';
 import 'my_recipes_screen.dart';
+import '../auth/auth_gate.dart';
+import '../backend/quant_backend.dart';
 
 /// Home screen for the Quant app - entry point with main actions.
 class QuantHomeScreen extends StatelessWidget {
@@ -17,7 +19,21 @@ class QuantHomeScreen extends StatelessWidget {
       backgroundColor: _backgroundColor,
       appBar: AppBar(
         title: const Text('Quant'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await tokenStore.clear();
+              if (!context.mounted) return;
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const AuthGate()),
+                    (_) => false,
+              );
+            },
+          ),
+        ],
       ),
+
       body: const _QuantHomeBody(),
     );
   }
