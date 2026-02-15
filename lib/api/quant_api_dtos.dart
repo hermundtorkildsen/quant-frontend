@@ -59,12 +59,15 @@ class IngredientDto {
     this.unit,
     required this.item,
     this.notes,
+    this.section,
   });
 
   final double? amount;
   final String? unit;
   final String item;
   final String? notes;
+  final String? section;
+
 
   factory IngredientDto.fromJson(Map<String, dynamic> json) {
     return IngredientDto(
@@ -72,6 +75,7 @@ class IngredientDto {
       unit: json['unit'] as String?,
       item: json['item'] as String,
       notes: json['notes'] as String?,
+      section: json['section'] as String?,
     );
   }
 
@@ -81,6 +85,7 @@ class IngredientDto {
       if (unit != null) 'unit': unit,
       'item': item,
       if (notes != null) 'notes': notes,
+      if (section != null) 'section': section,
     };
   }
 }

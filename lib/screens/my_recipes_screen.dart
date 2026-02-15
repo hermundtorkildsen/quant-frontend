@@ -8,6 +8,7 @@ import '../features/calculators/screens/pizza_calculator_screen.dart';
 import '../models/recipe.dart';
 import 'import_from_text_screen.dart';
 import 'recipe_edit_screen.dart';
+import '../auth/auth_expired_handler.dart';
 
 /// Helper to get a human-readable origin label for a recipe in Norwegian.
 String? _getOriginLabel(Recipe recipe) {
@@ -223,12 +224,13 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
           }
 
           if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Kunne ikke laste oppskrifter.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            );
+            // Auth expired → send til login
+            WidgetsBinding.instance.addPostFrameCallback((_) async {
+              await maybeHandleAuthExpired(context, snapshot.error!);
+            });
+
+            // Vis en “tom” placeholder mens vi navigerer
+            return const SizedBox.shrink();
           }
 
           final recipes = snapshot.data ?? const [];
@@ -751,6 +753,18 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     final imageUrl = _recipe.metadata?.imageUrl;
     final tags = _recipe.metadata?.categories ?? const <String>[];
 
+    final groupedIngredients = <String?, List<Ingredient>>{};
+    for (final ing in _recipe.ingredients) {
+      groupedIngredients.putIfAbsent(ing.section, () => []).add(ing);
+    }
+
+    final entries = groupedIngredients.entries.toList()
+      ..sort((a, b) {
+        if (a.key == null) return -1; // uten section først
+        if (b.key == null) return 1;
+        return a.key!.toLowerCase().compareTo(b.key!.toLowerCase());
+      });
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Oppskrift'),
@@ -849,15 +863,33 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            ..._recipe.ingredients.map(
-              (ingredient) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(
-                  _formatIngredient(ingredient, scaleFactor),
-                  style: textTheme.bodyMedium,
+            ...entries.expand((entry) {
+              final section = entry.key;
+              final ingredients = entry.value;
+
+              return [
+                if (section != null && section.trim().isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12, bottom: 6),
+                    child: Text(
+                      section,
+                      style: textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ...ingredients.map(
+                      (ingredient) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      _formatIngredient(ingredient, scaleFactor),
+                      style: textTheme.bodyMedium,
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              ];
+            }).toList(),
+
             const SizedBox(height: 24),
             Text(
               'Steg',

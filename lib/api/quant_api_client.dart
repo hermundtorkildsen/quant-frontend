@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'quant_api_dtos.dart';
+import 'auth_exceptions.dart';
+import 'validation_exception.dart';
 
 /// HTTP client for communicating with the Quant Spring Boot backend API.
 ///
@@ -30,6 +32,7 @@ class QuantApiClient {
       headers: await _authHeaders(),
     );
 
+    _throwIfUnauthorized(response);
 
     if (response.statusCode != 200) {
       throw Exception(
@@ -53,6 +56,7 @@ class QuantApiClient {
       headers: await _authHeaders(),
     );
 
+    _throwIfUnauthorized(response);
 
     if (response.statusCode == 404) {
       throw Exception('Recipe not found: $id');
@@ -84,11 +88,49 @@ class QuantApiClient {
       body: body,
     );
 
+    _throwIfUnauthorized(response);
+
+    if (response.statusCode == 400) {
+      // backend: { error: "validation_error", message: "...", details: {field: msg}}
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          final detailsRaw = decoded["details"];
+          if (detailsRaw is Map<String, dynamic>) {
+            final details = detailsRaw.map((k, v) => MapEntry(k, v.toString()));
+
+            // Prioriter tittel-feil hvis den finnes
+            final titleMsg = details["title"];
+            if (titleMsg != null && titleMsg.trim().isNotEmpty) {
+              throw ValidationException(titleMsg, details: details);
+            }
+
+            // Ellers: første feilmelding
+            if (details.isNotEmpty) {
+              throw ValidationException(details.values.first, details: details);
+            }
+          }
+
+          final msg = decoded["message"]?.toString();
+          if (msg != null && msg.trim().isNotEmpty) {
+            throw ValidationException(msg);
+          }
+        }
+      } on ValidationException {
+        rethrow;
+      } catch (_) {
+        // fall through
+      }
+      throw ValidationException("Ugyldig input. Sjekk feltene og prøv igjen.");
+
+    }
+
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception(
         'Failed to save recipe: ${response.statusCode} ${response.reasonPhrase}',
       );
     }
+
 
     final json = jsonDecode(response.body) as Map<String, dynamic>;
     return RecipeDto.fromJson(json);
@@ -104,6 +146,7 @@ class QuantApiClient {
       headers: await _authHeaders(),
     );
 
+    _throwIfUnauthorized(response);
 
     if (response.statusCode == 404) {
       // Recipe not found - consider this a success (idempotent delete)
@@ -129,6 +172,8 @@ class QuantApiClient {
       body: body,
     );
 
+    _throwIfUnauthorized(response);
+
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception(
         'Failed to import recipe: ${response.statusCode} ${response.reasonPhrase}',
@@ -149,6 +194,26 @@ class QuantApiClient {
     }
     return headers;
   }
+
+  void _throwIfUnauthorized(http.Response response) {
+    if (response.statusCode != 401) return;
+
+    String msg = "Session expired";
+
+    // prøv å hente message fra backend JSON, men ikke swallow vår egen throw
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        msg = (decoded["message"] as String?) ?? msg;
+      }
+    } catch (_) {
+      // ignore parse errors
+    }
+
+    throw AuthExpiredException(message: msg);
+  }
+
+
 
 
 }

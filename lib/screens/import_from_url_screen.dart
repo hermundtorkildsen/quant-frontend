@@ -5,6 +5,8 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../backend/quant_backend.dart';
 import 'recipe_edit_screen.dart';
+import '../auth/auth_expired_handler.dart';
+
 
 /// Screen for importing a recipe from a URL using WebView.
 /// Extracts recipe data from JSON-LD structured data or falls back to page text.
@@ -413,30 +415,57 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
             builder: (_) => RecipeEditScreen(recipe: recipe),
           ),
         );
+
+        if (!mounted) return;
+        setState(() {
+          _isImporting = false;
+          _isExtracting = false;
+          _isLoading = false;
+        });
+
       } catch (e) {
         debugPrint('Failed to decode or import extracted data: $e');
         debugPrint('Raw result: $jsonString');
-        if (mounted) {
-          setState(() {
-            _isImporting = false;
-            _isExtracting = false;
-            _isLoading = false;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Kunne ikke importere oppskriften. Prøv igjen.'),
-            ),
-          );
-        }
+
+        if (!mounted) return;
+
+        final handled = await maybeHandleAuthExpired(context, e);
+        if (handled) return;
+
+        setState(() {
+          _isImporting = false;
+          _isExtracting = false;
+          _isLoading = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Kunne ikke importere oppskriften. Prøv igjen.'),
+          ),
+        );
       }
+
     } catch (e) {
       debugPrint('Error extracting recipe data: $e');
+
+      if (!mounted) return;
+
+      final handled = await maybeHandleAuthExpired(context, e);
+      if (handled) return;
+
       setState(() {
         _isExtracting = false;
         _isImporting = false;
         _isLoading = false;
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Kunne ikke hente/importere oppskriften. Prøv igjen.'),
+        ),
+      );
     }
+
   }
 
   Widget _buildUrlInput() {

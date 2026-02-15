@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 
 import '../backend/quant_backend.dart';
 import 'recipe_edit_screen.dart';
+import '../auth/auth_expired_handler.dart';
+
 
 /// Screen for importing a recipe from raw text.
 class ImportFromTextScreen extends StatefulWidget {
@@ -273,10 +275,15 @@ Server med grønnsaker eller salat.''';
 
     try {
       final sourceUrl = _sourceUrlController.text.trim();
+
+      debugPrint('IMPORT TEXT START: ${rawText.substring(0, rawText.length.clamp(0, 300))}');
+
       final recipe = await quantBackend.importRecipeFromText(
         rawText,
         sourceUrl: sourceUrl.isEmpty ? null : sourceUrl,
       );
+
+      debugPrint('SECTIONS: ${recipe.ingredients.map((i) => i.section).toSet()}');
 
       if (!mounted) return;
 
@@ -287,12 +294,17 @@ Server med grønnsaker eller salat.''';
       );
     } catch (e) {
       if (!mounted) return;
+
+      final handled = await maybeHandleAuthExpired(context, e);
+      if (handled) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Kunne ikke importere oppskriften. Prøv igjen.'),
         ),
       );
     } finally {
+
       if (mounted) {
         setState(() {
           _isImporting = false;

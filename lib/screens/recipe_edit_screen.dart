@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../backend/quant_backend.dart';
 import '../models/recipe.dart';
 import 'my_recipes_screen.dart';
+import '../auth/auth_expired_handler.dart';
+import '../api/validation_exception.dart';
 
 /// Screen for editing or creating a recipe.
 ///
@@ -57,12 +59,14 @@ class _RecipeEditScreenState extends State<RecipeEditScreen> {
 
     _editableIngredients = widget.recipe.ingredients
         .map((ing) => _EditableIngredient(
-              amount: ing.amount?.toString() ?? '',
-              unit: ing.unit ?? '',
-              item: ing.item,
-              notes: ing.notes ?? '',
-            ))
+          amount: ing.amount?.toString() ?? '',
+          unit: ing.unit ?? '',
+          item: ing.item,
+          notes: ing.notes ?? '',
+          section: ing.section,
+        ))
         .toList();
+
 
     _editableSteps = widget.recipe.steps
         .map((step) => _EditableStep(
@@ -145,6 +149,7 @@ class _RecipeEditScreenState extends State<RecipeEditScreen> {
                 notes: editable.notes.trim().isEmpty
                     ? null
                     : editable.notes.trim(),
+                section: editable.section,
               ))
           .toList();
 
@@ -212,12 +217,26 @@ class _RecipeEditScreenState extends State<RecipeEditScreen> {
       );
     } catch (e) {
       if (!mounted) return;
+
+      // Auth expired → clear + send til login (samme som i MyRecipesScreen)
+      final handled = await maybeHandleAuthExpired(context, e);
+      if (handled) return;
+
+      // Validation errors → vis pen melding
+      if (e is ValidationException) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+        return;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Kunne ikke lagre oppskrift: $e'),
         ),
       );
     } finally {
+
       if (mounted) {
         setState(() {
           _isSaving = false;
@@ -463,12 +482,14 @@ class _EditableIngredient {
     required this.unit,
     required this.item,
     required this.notes,
+    this.section,
   });
 
   String amount;
   String unit;
   String item;
   String notes;
+  String? section;
 }
 
 class _EditableIngredientWidget extends StatelessWidget {
@@ -509,6 +530,7 @@ class _EditableIngredientWidget extends StatelessWidget {
                         unit: ingredient.unit,
                         item: ingredient.item,
                         notes: ingredient.notes,
+                        section: ingredient.section,
                       ));
                     },
                   ),
@@ -529,6 +551,7 @@ class _EditableIngredientWidget extends StatelessWidget {
                         unit: value,
                         item: ingredient.item,
                         notes: ingredient.notes,
+                        section: ingredient.section,
                       ));
                     },
                   ),
@@ -549,6 +572,7 @@ class _EditableIngredientWidget extends StatelessWidget {
                         unit: ingredient.unit,
                         item: value,
                         notes: ingredient.notes,
+                        section: ingredient.section,
                       ));
                     },
                   ),
@@ -575,6 +599,7 @@ class _EditableIngredientWidget extends StatelessWidget {
                   unit: ingredient.unit,
                   item: ingredient.item,
                   notes: value,
+                  section: ingredient.section,
                 ));
               },
             ),

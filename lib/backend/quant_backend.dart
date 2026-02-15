@@ -79,7 +79,9 @@ final QuantBackend quantBackend = QuantBackendHttp(
         : 'http://10.0.2.2:8080',
     tokenProvider: tokenStore.getToken,
   ),
+  tokenStore,
 );
+
 
 // To switch back to mock backend for testing:
 // final QuantBackend quantBackend = QuantBackendMock();

@@ -64,12 +64,14 @@ class Ingredient {
     this.unit,
     required this.item,
     this.notes,
+    this.section,
   });
 
   final double? amount;
   final String? unit;
   final String item;
   final String? notes;
+  final String? section;
 
   factory Ingredient.fromJson(Map<String, dynamic> json) {
     return Ingredient(
