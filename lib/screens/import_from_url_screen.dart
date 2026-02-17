@@ -1,15 +1,19 @@
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-import '../backend/quant_backend.dart';
-import 'recipe_edit_screen.dart';
 import '../auth/auth_expired_handler.dart';
-
+import '../backend/quant_backend.dart';
+import '../screens/recipe_edit_screen.dart';
 
 /// Screen for importing a recipe from a URL using WebView.
-/// Extracts recipe data from JSON-LD structured data or falls back to page text.
+/// Extracts recipe data from JSON-LD structured data, then DOM heuristics,
+/// then falls back to cleaned page text.
+///
+/// Goal: maximize success rate across many recipe sites.
+/// Limits: paywalls/login-only pages cannot be bypassed.
 class ImportFromUrlScreen extends StatefulWidget {
   const ImportFromUrlScreen({
     super.key,
@@ -27,26 +31,30 @@ class ImportFromUrlScreen extends StatefulWidget {
 class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
   late final WebViewController _controller;
   late final TextEditingController _urlController;
+
   bool _isLoading = false;
   bool _isExtracting = false;
   bool _isImporting = false;
-  bool _hasExtracted = false;
+
   String _currentUrl = '';
+
+  int _attempt = 0;
+  bool _importTriggered = false;
+  DateTime? _extractStart;
+
+  static const int _maxTextLength = 25000;
 
   @override
   void initState() {
     super.initState();
     _currentUrl = widget.initialUrl;
     _urlController = TextEditingController(text: widget.initialUrl);
-    _isLoading = false; // Don't show loading state initially
-    // Initialize WebView controller but don't load anything yet
+
     _initializeWebView();
-    // Only load if we have a valid initial URL
+
     if (widget.initialUrl.isNotEmpty) {
       _controller.loadRequest(Uri.parse(widget.initialUrl));
-      setState(() {
-        _isLoading = true;
-      });
+      setState(() => _isLoading = true);
     }
   }
 
@@ -61,398 +69,206 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
+          onPageStarted: (String url) {
+            setState(() {
+              _isLoading = true;
+              _isExtracting = false;
+              _isImporting = false;
+              _currentUrl = url;
+            });
+            _attempt = 0;
+            _importTriggered = false;
+            _extractStart = null;
+          },
           onPageFinished: (String url) {
             setState(() {
               _currentUrl = url;
               _isLoading = false;
               _isExtracting = true;
             });
-            // Update URL controller to show current URL
+
             if (widget.embedded && _urlController.text != url) {
               _urlController.text = url;
             }
-            if (!_hasExtracted) {
-              _extractRecipeData();
-            }
-          },
-          onPageStarted: (String url) {
-            setState(() {
-              _isLoading = true;
-              _isExtracting = false;
-              _hasExtracted = false;
-            });
+
+            _scheduleExtract();
           },
         ),
       );
   }
 
-  bool _looksLikeCookieConsentText(String text) {
-    if (text.isEmpty) return false;
-    
-    final lowerText = text.toLowerCase();
-    
-    // Check for common consent/banner keywords
-    final consentKeywords = [
-      'cookie',
-      'cookies',
-      'samtykke',
-      'consent',
-      'privacy',
-      'personvern',
-      'detaljer',
-      'avslå alle',
-      'godta alle',
-      'lagre valgte',
-      'partners',
-      'legitimate interest',
-      'iab',
-      'tcf',
-    ];
-    
-    for (final keyword in consentKeywords) {
-      if (lowerText.contains(keyword)) {
-        return true;
-      }
-    }
-    
-    return false;
-  }
-
   void _loadUrl() {
     final url = _urlController.text.trim();
+
     if (url.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vennligst skriv inn en URL'),
-        ),
+        const SnackBar(content: Text('Vennligst skriv inn en URL')),
       );
       return;
     }
 
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('URL må starte med http:// eller https://'),
-        ),
+        const SnackBar(content: Text('URL må starte med http:// eller https://')),
       );
       return;
     }
 
     setState(() {
-      _hasExtracted = false;
       _isLoading = true;
       _isExtracting = false;
+      _isImporting = false;
       _currentUrl = url;
     });
 
+    _attempt = 0;
+    _importTriggered = false;
+
     _controller.loadRequest(Uri.parse(url));
+    setState(() => _isExtracting = true);
+    _extractStart = null;
+    _scheduleExtract();
   }
 
+  void _scheduleExtract() {
+    if (_importTriggered) return;
+
+    _extractStart ??= DateTime.now();
+
+    final elapsed = DateTime.now().difference(_extractStart!);
+
+    // Stop after 20 seconds
+    if (elapsed > const Duration(seconds: 20)) {
+      if (!mounted) return;
+
+      setState(() => _isExtracting = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Kunne ikke hente oppskrift fra denne nettsiden. '
+                'Tips: Kopier teksten fra nettsiden og importer via "Importer fra tekst".',
+          ),
+          duration: Duration(seconds: 6),
+        ),
+      );
+
+      return;
+    }
+
+
+    const pollDelay = Duration(milliseconds: 900);
+
+    Future.delayed(pollDelay, () async {
+      if (!mounted) return;
+      if (_importTriggered) return;
+
+      await _extractRecipeData();
+
+      if (!_importTriggered) {
+        _scheduleExtract();
+      }
+    });
+  }
+
+
   Future<void> _extractRecipeData() async {
-    if (_hasExtracted) return;
-    _hasExtracted = true;
+    if (_importTriggered) return;
 
     try {
-      final jsCode = '''
-        (function() {
-          try {
-            // Find all JSON-LD script tags
-            const scripts = document.querySelectorAll('script[type="application/ld+json"]');
-            let recipeData = null;
+      final result = await _controller.runJavaScriptReturningResult(_jsExtractRecipe());
+      if (!mounted) return;
 
-            // Try to find Recipe in JSON-LD
-            for (let script of scripts) {
-              try {
-                let jsonData = JSON.parse(script.textContent);
-                
-                // Handle different JSON-LD formats
-                let candidates = [];
-                
-                if (Array.isArray(jsonData)) {
-                  candidates = jsonData;
-                } else if (jsonData['@graph'] && Array.isArray(jsonData['@graph'])) {
-                  candidates = jsonData['@graph'];
-                } else {
-                  candidates = [jsonData];
-                }
+      final decoded = _decodeWebViewJson(result);
 
-                // Find Recipe type
-                for (let candidate of candidates) {
-                  const type = candidate['@type'];
-                  const isRecipe = type === 'Recipe' || 
-                                  (Array.isArray(type) && type.includes('Recipe')) ||
-                                  type === 'https://schema.org/Recipe' ||
-                                  (Array.isArray(type) && type.some(t => 
-                                    t === 'https://schema.org/Recipe' || 
-                                    t === 'http://schema.org/Recipe'
-                                  ));
+      String textToImport = '';
+      String kind = 'unknown';
+      String? pageUrl;
 
-                  if (isRecipe) {
-                    recipeData = candidate;
-                    break;
-                  }
-                }
+      if (decoded is Map<String, dynamic>) {
+        kind = (decoded['kind'] ?? 'unknown').toString();
+        pageUrl = decoded['sourceUrl']?.toString();
 
-                if (recipeData) break;
-              } catch (e) {
-                // Skip invalid JSON
-                continue;
-              }
-            }
-
-            if (recipeData) {
-              // Extract recipe fields
-              const title = recipeData.name || recipeData.headline || '';
-              
-              // Extract ingredients
-              let ingredients = [];
-              if (recipeData.recipeIngredient) {
-                if (Array.isArray(recipeData.recipeIngredient)) {
-                  ingredients = recipeData.recipeIngredient.map(ing => {
-                    if (typeof ing === 'string') return ing;
-                    if (ing.text) return ing.text;
-                    return String(ing);
-                  });
-                } else if (typeof recipeData.recipeIngredient === 'string') {
-                  ingredients = [recipeData.recipeIngredient];
-                }
-              }
-
-              // Extract instructions
-              let steps = [];
-              if (recipeData.recipeInstructions) {
-                if (typeof recipeData.recipeInstructions === 'string') {
-                  steps = [recipeData.recipeInstructions];
-                } else if (Array.isArray(recipeData.recipeInstructions)) {
-                  steps = recipeData.recipeInstructions.map(step => {
-                    if (typeof step === 'string') return step;
-                    if (step.text) return step.text;
-                    if (step['@type'] === 'HowToStep' && step.text) return step.text;
-                    return String(step);
-                  });
-                }
-              }
-
-              return JSON.stringify({
-                kind: 'recipe',
-                title: title,
-                ingredients: ingredients,
-                steps: steps
-              });
-            } else {
-              // Fallback: extract page text
-              const bodyText = document.body ? document.body.innerText : '';
-              return JSON.stringify({
-                kind: 'text',
-                text: bodyText
-              });
-            }
-          } catch (e) {
-            // Fallback on any error
-            const bodyText = document.body ? document.body.innerText : '';
-            return JSON.stringify({
-              kind: 'text',
-              text: bodyText
-            });
-          }
-        })();
-      ''';
-
-      final result = await _controller.runJavaScriptReturningResult(jsCode);
-      
-      setState(() {
-        _isExtracting = false;
-      });
-
-      // Parse the result
-      String jsonString;
-      if (result is String) {
-        // Remove quotes if JavaScript returned a quoted string
-        jsonString = result;
-        if (jsonString.isNotEmpty) {
-          final firstChar = jsonString[0];
-          final lastChar = jsonString[jsonString.length - 1];
-          if ((firstChar == '"' || firstChar == "'") && firstChar == lastChar) {
-            jsonString = jsonString.substring(1, jsonString.length - 1);
-          }
+        if (kind == 'recipe') {
+          textToImport = _formatRecipeForClaude(decoded);
+        } else if (kind == 'text') {
+          final raw = (decoded['text'] ?? '').toString();
+          textToImport = _cleanAndCapText(raw);
+        } else {
+          textToImport = _cleanAndCapText(jsonEncode(decoded));
         }
-        // Unescape JSON string if needed
-        jsonString = jsonString.replaceAll('\\"', '"').replaceAll('\\n', '\n');
       } else {
-        jsonString = result.toString();
+        textToImport = _cleanAndCapText(decoded?.toString() ?? '');
       }
 
-      // Try to decode JSON and import
-      try {
-        final decoded = jsonDecode(jsonString);
-        debugPrint('=== Extracted Recipe Data ===');
-        debugPrint(jsonEncode(decoded));
-        debugPrint('===========================');
+      final sourceUrl = (pageUrl != null && pageUrl.trim().isNotEmpty) ? pageUrl.trim() : _currentUrl;
 
-        // Import the extracted data
-        String textToImport;
-        String? extractedKind;
-        if (decoded is Map<String, dynamic>) {
-          extractedKind = decoded['kind'] as String?;
-          if (decoded['kind'] == 'recipe') {
-            // Format structured recipe as text
-            final buffer = StringBuffer();
-            if (decoded['title'] != null) {
-              buffer.writeln(decoded['title']);
-              buffer.writeln();
-            }
-            if (decoded['ingredients'] != null && decoded['ingredients'] is List) {
-              buffer.writeln('Ingredienser:');
-              for (final ing in decoded['ingredients']) {
-                buffer.writeln('- $ing');
-              }
-              buffer.writeln();
-            }
-            if (decoded['steps'] != null && decoded['steps'] is List) {
-              buffer.writeln('Instruksjoner:');
-              for (int i = 0; i < decoded['steps'].length; i++) {
-                buffer.writeln('${i + 1}. ${decoded['steps'][i]}');
-              }
-            }
-            textToImport = buffer.toString();
-          } else if (decoded['kind'] == 'text' && decoded['text'] != null) {
-            var extractedText = decoded['text'] as String;
-            
-            // Normalize line endings
-            extractedText = extractedText.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
-            
-            // Check for cookie consent banner
-            if (_looksLikeCookieConsentText(extractedText) && extractedText.length < 2000) {
-              // Likely a cookie consent banner - don't import
-              if (!mounted) return;
-              setState(() {
-                _isLoading = false;
-                _isExtracting = false;
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Denne siden viser en cookie-samtykkedialog. Vennligst godta eller avslå cookies på siden, og trykk deretter Last inn igjen.',
-                  ),
-                  duration: Duration(seconds: 5),
-                ),
-              );
-              return;
-            }
-            
-            // Hard-cap length at 25000 characters
-            const maxLength = 25000;
-            if (extractedText.length > maxLength) {
-              extractedText = extractedText.substring(0, maxLength);
-            }
-            
-            textToImport = extractedText;
-          } else {
-            textToImport = jsonEncode(decoded);
+      if (sourceUrl.isEmpty) return;
+
+      // Heuristics: detect consent/paywall/empty so we can retry and not import junk
+      if (_looksBlockedOrEmpty(textToImport)) {
+        // If cookie/consent-like, show hint but allow retries
+        if (_looksLikeCookieConsentText(textToImport)) {
+          if (_attempt == 2) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Hvis siden viser cookie-dialog: godta/avslå i webview og vent litt.'),
+                duration: Duration(seconds: 4),
+              ),
+            );
           }
-        } else {
-          textToImport = jsonString;
         }
+        return; // let retries happen
+      }
 
-        // Call backend to import
-        if (!mounted) return;
-        
-        // Validate sourceUrl is present (required for URL imports)
-        if (_currentUrl.isEmpty) {
-          setState(() {
-            _isExtracting = false;
-            _isLoading = false;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Kunne ikke importere: URL mangler.'),
-            ),
-          );
-          return;
-        }
-        
-        // Set importing state to show overlay
+      // If we got meaningful content, trigger import once.
+      _importTriggered = true;
+
+      if (mounted) {
         setState(() {
+          _isLoading = false;
+          _isExtracting = false;
           _isImporting = true;
         });
-        
-        // Debug logging: inspect what is being sent to backend
-        if (kDebugMode) {
-          final textLength = textToImport.length;
-          final textHead = textLength > 0 
-              ? textToImport.substring(0, textLength > 600 ? 600 : textLength)
-              : '';
-          final textTail = textLength > 600
-              ? textToImport.substring(textLength - 600)
-              : textToImport;
-          
-          print('=== URL_IMPORT_PAYLOAD ===');
-          print('url=$_currentUrl');
-          print('kind=$extractedKind');
-          print('len=$textLength');
-          print('HEAD_START');
-          print(textHead);
-          print('HEAD_END');
-          print('TAIL_START');
-          print(textTail);
-          print('TAIL_END');
-          
-          // Simple debug log: kind and payload length
-          print('URL_IMPORT: kind=$extractedKind, payload_length=$textLength');
-        }
-        
-        // Always provide sourceUrl for URL imports
-        final recipe = await quantBackend.importRecipeFromText(
-          textToImport,
-          sourceUrl: _currentUrl,
-        );
-
-        if (!mounted) return;
-
-        // Navigate to edit screen (overlay will remain until navigation completes)
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => RecipeEditScreen(recipe: recipe),
-          ),
-        );
-
-        if (!mounted) return;
-        setState(() {
-          _isImporting = false;
-          _isExtracting = false;
-          _isLoading = false;
-        });
-
-      } catch (e) {
-        debugPrint('Failed to decode or import extracted data: $e');
-        debugPrint('Raw result: $jsonString');
-
-        if (!mounted) return;
-
-        final handled = await maybeHandleAuthExpired(context, e);
-        if (handled) return;
-
-        setState(() {
-          _isImporting = false;
-          _isExtracting = false;
-          _isLoading = false;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Kunne ikke importere oppskriften. Prøv igjen.'),
-          ),
-        );
       }
 
-    } catch (e) {
-      debugPrint('Error extracting recipe data: $e');
+      if (kDebugMode) {
+        final len = textToImport.length;
+        final head = len > 0 ? textToImport.substring(0, len > 600 ? 600 : len) : '';
+        final tail = len > 600 ? textToImport.substring(len - 600) : textToImport;
 
+        debugPrint('=== URL_IMPORT_PAYLOAD ===');
+        debugPrint('url=$sourceUrl');
+        debugPrint('kind=$kind');
+        debugPrint('len=$len');
+        debugPrint('HEAD_START\n$head\nHEAD_END');
+        debugPrint('TAIL_START\n$tail\nTAIL_END');
+      }
+
+      final recipe = await quantBackend.importRecipeFromText(
+        textToImport,
+        sourceUrl: sourceUrl,
+      );
+
+      if (!mounted) return;
+
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => RecipeEditScreen(recipe: recipe)),
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _isImporting = false;
+        _isExtracting = false;
+        _isLoading = false;
+      });
+    } catch (e) {
       if (!mounted) return;
 
       final handled = await maybeHandleAuthExpired(context, e);
       if (handled) return;
 
+      // Keep extracting state off on hard failure.
       setState(() {
         _isExtracting = false;
         _isImporting = false;
@@ -460,13 +276,702 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Kunne ikke hente/importere oppskriften. Prøv igjen.'),
-        ),
+        const SnackBar(content: Text('Kunne ikke hente/importere oppskriften. Prøv igjen.')),
       );
     }
-
   }
+
+  // ---------------------------
+  //  Parsing / formatting helpers
+  // ---------------------------
+
+  dynamic _decodeWebViewJson(Object? result) {
+    if (result == null) return null;
+
+    if (result is String) {
+      final s = result.trim();
+
+      // Sometimes it returns JSON directly
+      if (s.startsWith('{') || s.startsWith('[')) {
+        return jsonDecode(s);
+      }
+
+      // Sometimes it returns a quoted JSON-string
+      final unquoted = jsonDecode(s);
+      if (unquoted is String) {
+        return jsonDecode(unquoted);
+      }
+      return unquoted;
+    }
+
+    // Fallback
+    return jsonDecode(result.toString());
+  }
+
+  String _cleanAndCapText(String input) {
+    var t = input.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    t = t.replaceAll(RegExp(r'[ \t]+\n'), '\n');
+    t = t.replaceAll(RegExp(r'\n{4,}'), '\n\n\n');
+    t = t.trim();
+
+    if (t.length > _maxTextLength) {
+      t = t.substring(0, _maxTextLength);
+    }
+    return t;
+  }
+
+  String _formatRecipeForClaude(Map<String, dynamic> decoded) {
+    final title = (decoded['title'] ?? '').toString().trim();
+
+    final ingredients = (decoded['ingredients'] is List)
+        ? (decoded['ingredients'] as List).map((e) => e.toString()).where((s) => s.trim().isNotEmpty).toList()
+        : <String>[];
+
+    final steps = (decoded['steps'] is List)
+        ? (decoded['steps'] as List).map((e) => e.toString()).where((s) => s.trim().isNotEmpty).toList()
+        : <String>[];
+
+    final b = StringBuffer();
+
+    if (title.isNotEmpty) {
+      b.writeln(title);
+      b.writeln();
+    }
+
+    // Context first helps sectioning + Claude inference
+    if (steps.isNotEmpty) {
+      b.writeln('Oppskriftstekst:');
+      for (final s in steps) {
+        b.writeln(s);
+      }
+      b.writeln();
+    }
+
+    if (ingredients.isNotEmpty) {
+      b.writeln('Ingredienser:');
+      for (final ing in ingredients) {
+        b.writeln('- ${ing.trim()}');
+      }
+      b.writeln();
+    }
+
+    if (steps.isNotEmpty) {
+      b.writeln('Instruksjoner:');
+      var i = 1;
+      for (final s in steps) {
+        final line = s.trim();
+        if (line.endsWith(':')) {
+          b.writeln(line);
+        } else {
+          b.writeln('${i++}. $line');
+        }
+      }
+    }
+
+    return _cleanAndCapText(b.toString());
+  }
+
+  bool _looksLikeCookieConsentText(String text) {
+    if (text.isEmpty) return false;
+
+    final lower = text.toLowerCase();
+
+    const consentKeywords = [
+      'cookie',
+      'cookies',
+      'samtykke',
+      'consent',
+      'privacy',
+      'personvern',
+      'avslå alle',
+      'godta alle',
+      'lagre valgte',
+      'legitimate interest',
+      'iab',
+      'tcf',
+      'cmp',
+      'vendor',
+    ];
+
+    for (final k in consentKeywords) {
+      if (lower.contains(k)) return true;
+    }
+    return false;
+  }
+
+  bool _looksBlockedOrEmpty(String text) {
+    final t = text.trim();
+    if (t.isEmpty) return true;
+
+    // too short to be useful
+    if (t.length < 400) return true;
+
+    final lower = t.toLowerCase();
+
+    // obvious paywall/login
+    const blockedHints = [
+      'logg inn',
+      'abonnement',
+      'prøv gratis',
+      'betal',
+      'subscribe',
+      'sign in',
+      'login',
+      'member',
+      'premium',
+    ];
+    for (final h in blockedHints) {
+      if (lower.contains(h)) return true;
+    }
+
+    return false;
+  }
+
+
+  // ---------------------------
+  //  JS extraction
+  // ---------------------------
+
+
+  String _jsExtractRecipe() => r'''
+(function() {
+  function normalizeText(s) {
+    if (!s) return '';
+    return String(s)
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{4,}/g, '\n\n\n')
+      .trim();
+  }
+
+  function getCleanVisibleText() {
+    const root =
+      document.querySelector('article') ||
+      document.querySelector('main') ||
+      document.querySelector('[role="main"]') ||
+      document.body;
+
+    if (!root) return '';
+
+    const node = root.cloneNode(true);
+
+    // Remove obvious noise (generic, not site-specific)
+    const selectors = [
+      'script','style','noscript',
+      'nav','header','footer','aside',
+      '[role="navigation"]',
+
+      // common overlays / banners
+      '[aria-modal="true"]',
+      '[class*="cookie"]','[id*="cookie"]',
+      '[class*="consent"]','[id*="consent"]',
+      '[class*="banner"]','[id*="banner"]',
+      '[class*="modal"]','[id*="modal"]',
+      '[class*="subscribe"]','[id*="subscribe"]',
+      '[class*="paywall"]','[id*="paywall"]',
+    ];
+
+    for (const sel of selectors) {
+      const els = node.querySelectorAll(sel);
+      for (const el of els) el.remove();
+    }
+
+    return node.innerText || '';
+  }
+
+  try {
+    const title =
+      document.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
+      document.querySelector('h1')?.innerText ||
+      document.title ||
+      '';
+
+    const text = getCleanVisibleText();
+
+    return JSON.stringify({
+      kind: 'text',
+      title: normalizeText(title),
+      text: normalizeText(text),
+      sourceUrl: (location && location.href) ? location.href : ''
+    });
+  } catch (e) {
+    const text = (document.body && document.body.innerText) ? document.body.innerText : '';
+    return JSON.stringify({
+      kind: 'text',
+      title: '',
+      text: normalizeText(text),
+      sourceUrl: (location && location.href) ? location.href : ''
+    });
+  }
+})();
+''';
+
+
+
+
+//  String _jsExtractRecipe() => r'''
+//(function() {
+//  function safeText(s) {
+//    if (!s) return '';
+//    return String(s).replace(/\s+/g, ' ').trim();
+//  }
+//
+//  function getCleanVisibleText() {
+//    const root =
+//      document.querySelector('article') ||
+//      document.querySelector('main') ||
+//      document.querySelector('[role="main"]') ||
+//      document.body;
+//
+//    if (!root) return '';
+//
+//    const node = root.cloneNode(true);
+//
+//    // remove obvious noise
+//    const selectors = [
+//      'script','style','noscript',
+//      'nav','header','footer','aside',
+//      '[role="navigation"]',
+//      '[aria-modal="true"]',
+//      '[class*="cookie"]','[id*="cookie"]',
+//      '[class*="consent"]','[id*="consent"]',
+//      '[class*="banner"]','[id*="banner"]',
+//      '[class*="modal"]','[id*="modal"]',
+//    ];
+//
+//    for (const sel of selectors) {
+//      const els = node.querySelectorAll(sel);
+//      for (const el of els) el.remove();
+//    }
+//
+//    return node.innerText || '';
+//  }
+//
+//  try {
+//    const title =
+//      document.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
+//      document.querySelector('h1')?.innerText ||
+//      document.title ||
+//      '';
+//
+//    const text = getCleanVisibleText();
+//
+//    return JSON.stringify({
+//      kind: 'text',
+//      title: safeText(title),
+//      text: text,
+//      sourceUrl: (location && location.href) ? location.href : ''
+//    });
+//  } catch (e) {
+//    const text = (document.body && document.body.innerText) ? document.body.innerText : '';
+//    return JSON.stringify({
+//      kind: 'text',
+//      title: '',
+//      text: text,
+//      sourceUrl: (location && location.href) ? location.href : ''
+//    });
+//  }
+//})();
+//''';
+
+
+
+
+
+//  String _jsExtractRecipe() => r'''
+//(function() {
+//  function safeText(s) {
+//    if (!s) return '';
+//    return String(s).replace(/\s+/g, ' ').trim();
+//  }
+//
+//  function flattenCandidates(jsonData) {
+//    if (!jsonData) return [];
+//    if (Array.isArray(jsonData)) return jsonData;
+//
+//    if (jsonData['@graph'] && Array.isArray(jsonData['@graph'])) {
+//      return jsonData['@graph'];
+//    }
+//
+//    if (jsonData.mainEntity) {
+//      if (Array.isArray(jsonData.mainEntity)) return jsonData.mainEntity;
+//      return [jsonData.mainEntity];
+//    }
+//
+//    return [jsonData];
+//  }
+//
+//  function isRecipeType(type) {
+//    if (!type) return false;
+//    if (type === 'Recipe') return true;
+//    if (type === 'https://schema.org/Recipe' || type === 'http://schema.org/Recipe') return true;
+//    if (Array.isArray(type)) {
+//      for (const t of type) {
+//        if (t === 'Recipe' || t === 'https://schema.org/Recipe' || t === 'http://schema.org/Recipe') return true;
+//      }
+//    }
+//    return false;
+//  }
+//
+//  function extractIngredients(recipeData) {
+//    let ingredients = [];
+//    const ri = recipeData.recipeIngredient;
+//
+//    if (!ri) return ingredients;
+//
+//    if (typeof ri === 'string') {
+//      const s = safeText(ri);
+//      return s ? [s] : [];
+//    }
+//
+//    if (Array.isArray(ri)) {
+//      for (const ing of ri) {
+//        if (typeof ing === 'string') {
+//          const s = safeText(ing);
+//          if (s) ingredients.push(s);
+//          continue;
+//        }
+//        if (ing && ing.text) {
+//          const s = safeText(ing.text);
+//          if (s) ingredients.push(s);
+//          continue;
+//        }
+//        const s = safeText(ing);
+//        if (s) ingredients.push(s);
+//      }
+//      return ingredients.filter(Boolean);
+//    }
+//
+//    return ingredients;
+//  }
+//
+//  function extractInstructions(recipeData) {
+//    let steps = [];
+//
+//    function pushStepText(t) {
+//      const s = safeText(t);
+//      if (s) steps.push(s);
+//    }
+//
+//    function handleInstructionNode(node) {
+//      if (!node) return;
+//
+//      if (typeof node === 'string') {
+//        pushStepText(node);
+//        return;
+//      }
+//
+//      if (node.text) {
+//        pushStepText(node.text);
+//        return;
+//      }
+//
+//      const t = node['@type'];
+//      const isSection = t === 'HowToSection' || (Array.isArray(t) && t.includes('HowToSection'));
+//      if (isSection) {
+//        const name = node.name || node.headline;
+//        if (name) {
+//          steps.push('');
+//          steps.push(safeText(name) + ':');
+//        }
+//        const items = node.itemListElement || node.steps || [];
+//        if (Array.isArray(items)) {
+//          for (const it of items) handleInstructionNode(it);
+//        } else {
+//          handleInstructionNode(items);
+//        }
+//        return;
+//      }
+//
+//      if (node.itemListElement && Array.isArray(node.itemListElement)) {
+//        for (const it of node.itemListElement) handleInstructionNode(it);
+//        return;
+//      }
+//    }
+//
+//    const ri = recipeData.recipeInstructions;
+//    if (!ri) return steps;
+//
+//    if (typeof ri === 'string') {
+//      handleInstructionNode(ri);
+//      return steps;
+//    }
+//
+//    if (Array.isArray(ri)) {
+//      for (const n of ri) handleInstructionNode(n);
+//      return steps;
+//    }
+//
+//    handleInstructionNode(ri);
+//    return steps;
+//  }
+//
+//  function uniqKeepOrder(arr) {
+//    const seen = new Set();
+//    const out = [];
+//    for (const x of arr) {
+//      const s = safeText(x);
+//      if (!s) continue;
+//      const key = s.toLowerCase();
+//      if (seen.has(key)) continue;
+//      seen.add(key);
+//      out.push(s);
+//    }
+//    return out;
+//  }
+//
+//  function queryTextList(selectors) {
+//    for (const sel of selectors) {
+//      const nodes = document.querySelectorAll(sel);
+//      if (!nodes || nodes.length === 0) continue;
+//      const vals = [];
+//      for (const n of nodes) {
+//        const t = safeText(n.innerText || n.textContent);
+//        if (t) vals.push(t);
+//      }
+//      if (vals.length > 0) return uniqKeepOrder(vals);
+//    }
+//    return [];
+//  }
+//
+//  // ----------- DOM recipe extraction (generic scoring) -----------
+//
+//  function collectLis(listEl) {
+//    const items = Array.from(listEl.querySelectorAll('li'))
+//      .map(li => safeText(li.innerText || li.textContent))
+//      .filter(s => s && s.length >= 2);
+//    return uniqKeepOrder(items);
+//  }
+//
+//  function ingredientLineScore(line) {
+//    const s = line;
+//    let score = 0;
+//
+//    // Numbers are common in ingredients
+//    if (/\d/.test(s)) score += 2;
+//
+//    // Unit tokens (NO + EN). General purpose (not site-specific).
+//    if (/\b(gram|g|kg|dl|cl|l|ml|stk|pk|pose|boks|ss|spsk|ts|teskje|klype|fedd|skive|skiver)\b/i.test(s)) score += 2;
+//    if (/\b(cup|tbsp|tsp|oz|lb|pinch|clove|slice|slices)\b/i.test(s)) score += 2;
+//
+//    // Reasonable length
+//    if (s.length <= 90) score += 1;
+//    if (s.length > 180) score -= 2;
+//
+//    // Avoid junk
+//    if (/https?:\/\//i.test(s)) score -= 6;
+//    if (/(facebook|instagram|pinterest|del|share|cookie|privacy|abonner|subscribe|logg inn|sign in|newsletter)/i.test(s)) score -= 3;
+//
+//    return score;
+//  }
+//
+//  function scoreIngredientList(items) {
+//    if (!items || items.length < 3) return -999;
+//
+//    let sum = 0;
+//    let good = 0;
+//    for (const it of items) {
+//      const sc = ingredientLineScore(it);
+//      sum += sc;
+//      if (sc >= 3) good++;
+//    }
+//
+//    // Prefer lists where many lines look like real ingredients
+//    sum += good * 2;
+//
+//    // Penalize if it looks like a generic link list
+//    const manyShort = items.filter(x => x.length <= 25).length;
+//    if (manyShort > items.length * 0.7) sum -= 4;
+//
+//    return sum;
+//  }
+//
+//  function stepLineScore(line) {
+//    const s = line;
+//    let score = 0;
+//    if (s.length >= 20) score += 1;
+//    if (/(stek|kok|bland|tilsett|la|sett|varm|server|preheat|bake|stir|add|cook)/i.test(s)) score += 2;
+//    if (/https?:\/\//i.test(s)) score -= 6;
+//    if (/(cookie|privacy|subscribe|logg inn|sign in|newsletter)/i.test(s)) score -= 3;
+//    return score;
+//  }
+//
+//  function scoreStepList(items) {
+//    if (!items || items.length < 3) return -999;
+//    let sum = 0;
+//    for (const it of items) sum += stepLineScore(it);
+//    return sum;
+//  }
+//
+//  function extractRecipeFromDom() {
+//    const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
+//    const h1 = document.querySelector('h1')?.innerText;
+//    const title = safeText(ogTitle || h1 || document.title || '');
+//
+//    const root =
+//      document.querySelector('article') ||
+//      document.querySelector('main') ||
+//      document.querySelector('[itemtype*="schema.org/Recipe"]') ||
+//      document.body;
+//
+//    // Ingredients: start with microdata if present
+//    let ingredients = queryTextList(['[itemprop="recipeIngredient"]']);
+//    let bestIngredients = ingredients;
+//    let bestIngScore = scoreIngredientList(bestIngredients);
+//
+//    // Then score UL/OL candidates inside root
+//    const lists = root ? root.querySelectorAll('ul,ol') : document.querySelectorAll('ul,ol');
+//    for (const listEl of lists) {
+//      const liCount = listEl.querySelectorAll('li').length;
+//      if (liCount < 3 || liCount > 70) continue;
+//
+//      const items = collectLis(listEl);
+//      const sc = scoreIngredientList(items);
+//      if (sc > bestIngScore) {
+//        bestIngScore = sc;
+//        bestIngredients = items;
+//      }
+//    }
+//    ingredients = bestIngredients || [];
+//
+//    // Steps: try common selectors first
+//    let steps = queryTextList([
+//      '[itemprop="recipeInstructions"] li',
+//      '[itemprop="recipeInstructions"] p',
+//      '[class*="instruction"] li',
+//      '[class*="fremgang"] li',
+//      '.instructions li',
+//      '#instructions li',
+//    ]).filter(s => s.length >= 5 && !/^\d+$/.test(s));
+//
+//    // If weak, score OL candidates
+//    if (!steps || steps.length < 3) {
+//      let bestSteps = steps || [];
+//      let bestStepScore = scoreStepList(bestSteps);
+//
+//      const ols = root ? root.querySelectorAll('ol') : document.querySelectorAll('ol');
+//      for (const ol of ols) {
+//        const liCount = ol.querySelectorAll('li').length;
+//        if (liCount < 3 || liCount > 50) continue;
+//
+//        const items = collectLis(ol).filter(s => s.length >= 5 && !/^\d+$/.test(s));
+//        const sc = scoreStepList(items);
+//        if (sc > bestStepScore) {
+//          bestStepScore = sc;
+//          bestSteps = items;
+//        }
+//      }
+//      steps = bestSteps;
+//    }
+//
+//    const ok = (ingredients.length >= 3) || (steps && steps.length >= 3);
+//    if (!ok) return null;
+//
+//    return {
+//      kind: 'recipe',
+//      title: title,
+//      ingredients: ingredients,
+//      steps: steps || [],
+//      sourceUrl: (location && location.href) ? location.href : ''
+//    };
+//  }
+//
+//  function bestEffortMainText() {
+//    const root =
+//      document.querySelector('article') ||
+//      document.querySelector('main') ||
+//      document.querySelector('[itemtype*="schema.org/Recipe"]') ||
+//      document.body;
+//
+//    if (!root) return '';
+//
+//    const node = root.cloneNode(true);
+//
+//    const selectors = [
+//      'script', 'style', 'noscript',
+//      'nav', 'header', 'footer',
+//      'aside', '[role="navigation"]',
+//      '.comments', '#comments',
+//      '.newsletter', '.signup',
+//      '.share', '.social', '.related', '.recommended',
+//      '.cookie', '#cookie', '[id*="cookie"]', '[class*="cookie"]',
+//      '[aria-label*="cookie"]', '[aria-label*="consent"]',
+//      '[class*="banner"]', '[id*="banner"]',
+//      '[class*="paywall"]', '[id*="paywall"]',
+//      '[class*="subscribe"]', '[id*="subscribe"]',
+//      '[class*="modal"]', '[id*="modal"]',
+//    ];
+//    for (const sel of selectors) {
+//      const els = node.querySelectorAll(sel);
+//      for (const el of els) el.remove();
+//    }
+//
+//    return node.innerText || '';
+//  }
+//
+//  try {
+//    const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+//    let recipeData = null;
+//
+//    for (const script of scripts) {
+//      try {
+//        const raw = script.textContent;
+//        if (!raw || !raw.trim()) continue;
+//
+//        const jsonData = JSON.parse(raw);
+//        const candidates = flattenCandidates(jsonData);
+//
+//        for (const c of candidates) {
+//          if (c && isRecipeType(c['@type'])) {
+//            recipeData = c;
+//            break;
+//          }
+//        }
+//        if (recipeData) break;
+//      } catch (e) {
+//        continue;
+//      }
+//    }
+//
+//    if (recipeData) {
+//      const title = safeText(recipeData.name || recipeData.headline || '');
+//      const ingredients = extractIngredients(recipeData);
+//      const steps = extractInstructions(recipeData);
+//
+//      return JSON.stringify({
+//        kind: 'recipe',
+//        title: title,
+//        ingredients: ingredients,
+//        steps: steps,
+//        sourceUrl: (location && location.href) ? location.href : ''
+//      });
+//    }
+//
+//    const domRecipe = extractRecipeFromDom();
+//    if (domRecipe) return JSON.stringify(domRecipe);
+//
+//    const text = bestEffortMainText();
+//    return JSON.stringify({
+//      kind: 'text',
+//      text: text,
+//      sourceUrl: (location && location.href) ? location.href : ''
+//    });
+//  } catch (e) {
+//    const text = (document.body && document.body.innerText) ? document.body.innerText : '';
+//    return JSON.stringify({
+//      kind: 'text',
+//      text: text,
+//      sourceUrl: (location && location.href) ? location.href : ''
+//    });
+//  }
+//})();
+//''';
+//
+
+  // ---------------------------
+  //  UI
+  // ---------------------------
 
   Widget _buildUrlInput() {
     if (!widget.embedded) return const SizedBox.shrink();
@@ -476,10 +981,7 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border(
-          bottom: BorderSide(
-            color: Colors.grey.shade300,
-            width: 1,
-          ),
+          bottom: BorderSide(color: Colors.grey.shade300, width: 1),
         ),
       ),
       child: Column(
@@ -530,13 +1032,9 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
   }
 
   String _getStatusMessage() {
-    if (_isImporting) {
-      return 'Importerer…';
-    } else if (_isExtracting) {
-      return 'Henter oppskrift…';
-    } else if (_isLoading) {
-      return 'Laster side…';
-    }
+    if (_isImporting) return 'Importerer…';
+    if (_isExtracting) return 'Henter oppskrift…';
+    if (_isLoading) return 'Laster side…';
     return '';
   }
 
@@ -552,27 +1050,23 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
               child: _currentUrl.isNotEmpty
                   ? WebViewWidget(controller: _controller)
                   : Container(
-                      color: Colors.grey.shade50,
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.link,
-                              size: 64,
-                              color: Colors.grey.shade400,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Lim inn en lenke og trykk Last inn',
-                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
+                color: Colors.grey.shade50,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.link, size: 64, color: Colors.grey.shade400),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Lim inn en lenke og trykk Last inn',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Colors.grey.shade600,
                         ),
                       ),
-                    ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -588,10 +1082,7 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
                     const SizedBox(height: 16),
                     Text(
                       _getStatusMessage(),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                     ),
                   ],
                 ),
@@ -606,16 +1097,11 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
   Widget build(BuildContext context) {
     final body = _buildBody();
 
-    if (widget.embedded) {
-      return body;
-    }
+    if (widget.embedded) return body;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Importer oppskrift'),
-      ),
+      appBar: AppBar(title: const Text('Importer oppskrift')),
       body: body,
     );
   }
 }
-

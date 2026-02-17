@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../backend/quant_backend.dart';
-import '../features/calculators/screens/pizza_calculator_screen.dart';
 import '../models/recipe.dart';
-import 'import_from_text_screen.dart';
 import 'recipe_edit_screen.dart';
 import '../auth/auth_expired_handler.dart';
+import '../features/calculators/screens/calculators_screen.dart';
+import 'import_recipe_screen.dart';
+import 'create_recipe_screen.dart';
+
 
 /// Helper to get a human-readable origin label for a recipe in Norwegian.
 String? _getOriginLabel(Recipe recipe) {
@@ -184,17 +186,6 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
       appBar: AppBar(
         title: const Text('Mine oppskrifter'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.text_snippet_outlined),
-            tooltip: 'Importer fra tekst',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const ImportFromTextScreen(),
-                ),
-              );
-            },
-          ),
           PopupMenuButton<RecipeSortMode>(
             tooltip: 'Sorter',
             icon: const Icon(Icons.sort),
@@ -416,29 +407,6 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
             },
           );
         },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          final newRecipe = Recipe(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
-            title: '',
-            description: '',
-            servings: 1,
-            ingredients: const [],
-            steps: const [],
-            metadata: RecipeMetadata(
-              importMethod: 'manual',
-              categories: const [],
-            ),
-          );
-
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => RecipeEditScreen(recipe: newRecipe),
-            ),
-          );
-        },
-        child: const Icon(Icons.add),
       ),
     );
   }
@@ -1483,7 +1451,7 @@ class _EmptyState extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.menu_book_outlined,
+              Icons.menu_book_outlined, // behold bok-ikonet
               size: 80,
               color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
             ),
@@ -1497,13 +1465,14 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'Lag din første oppskrift, importer fra tekst, eller bruk pizzakalkulatoren.',
+              'Lag din første oppskrift, importer fra tekst/URL, eller bruk verktøy.',
               style: textTheme.bodyMedium?.copyWith(
                 color: textTheme.bodyMedium?.color?.withOpacity(0.7),
               ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
+
             FilledButton.icon(
               onPressed: () => _createNewRecipe(context),
               icon: const Icon(Icons.add),
@@ -1513,11 +1482,12 @@ class _EmptyState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
+
             OutlinedButton.icon(
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => const ImportFromTextScreen(),
+                    builder: (_) => const ImportRecipeScreen(initialTab: 0),
                   ),
                 );
               },
@@ -1528,10 +1498,37 @@ class _EmptyState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
+
             OutlinedButton.icon(
-              onPressed: () => _openPizzaCalculator(context),
-              icon: const Icon(Icons.calculate_outlined),
-              label: const Text('Bruk pizzakalkulator'),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const ImportRecipeScreen(initialTab: 1),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.link_outlined),
+              label: const Text('Importer fra URL'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            OutlinedButton.icon(
+              onPressed: null, // kommer senere
+              icon: const Icon(Icons.image_outlined),
+              label: const Text('Importer fra bilde (kommer)'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            OutlinedButton.icon(
+              onPressed: () => _openTools(context),
+              icon: const Icon(Icons.handyman_outlined),
+              label: const Text('Bruk verktøy'),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               ),
@@ -1563,19 +1560,15 @@ class _EmptyState extends StatelessWidget {
     );
   }
 
-  void _openPizzaCalculator(BuildContext context) {
-    // Navigate to pizza calculator using the same pattern as calculator_category_screen
+  void _openTools(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const PizzaCalculatorScreen(
-          variantId: 'pizza-generic',
-          title: 'Pizzakalkulator',
-          description: 'Beregn ingredienser for pizzadeig',
-        ),
+        builder: (_) => const CalculatorsScreen(),
       ),
     );
   }
 }
+
 
 /// Dialog for scaling recipe servings with slider and presets.
 class _ScaleRecipeDialog extends StatefulWidget {

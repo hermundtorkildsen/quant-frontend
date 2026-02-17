@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../features/calculators/screens/calculators_screen.dart';
-import 'import_recipe_screen.dart';
+import 'create_recipe_screen.dart';
 import 'my_recipes_screen.dart';
 import '../auth/auth_gate.dart';
 import '../backend/quant_backend.dart';
@@ -33,7 +33,6 @@ class QuantHomeScreen extends StatelessWidget {
           ),
         ],
       ),
-
       body: const _QuantHomeBody(),
     );
   }
@@ -99,12 +98,6 @@ class _HeaderSection extends StatelessWidget {
 class _MainActions extends StatelessWidget {
   const _MainActions();
 
-  void _showPlaceholderSnackBar(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -115,35 +108,30 @@ class _MainActions extends StatelessWidget {
           icon: Icons.book_outlined,
           onTap: () {
             Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const MyRecipesScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const MyRecipesScreen()),
             );
           },
         ),
         const SizedBox(height: 16),
         _ActionCard(
-          title: 'Importer oppskrift',
-          subtitle: 'Lim inn tekst eller filer for å legge til nye oppskrifter.',
-          icon: Icons.content_paste,
+          title: 'Lag ny oppskrift',
+          subtitle: 'Manuelt, import eller fra verktøy.',
+          icon: Icons.add_circle_outline,
+          isPrimary: true,
           onTap: () {
             Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const ImportRecipeScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const CreateRecipeScreen()),
             );
           },
         ),
         const SizedBox(height: 16),
         _ActionCard(
-          title: 'Kalkulatorer',
-          subtitle: 'Juster hydrering, gjæring og mer.',
-          icon: Icons.calculate_outlined,
+          title: 'Verktøy',
+          subtitle: 'Kalkulatorer og hjelpemidler.',
+          icon: Icons.handyman_outlined,
           onTap: () {
             Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const CalculatorsScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const CalculatorsScreen()),
             );
           },
         ),
@@ -170,10 +158,11 @@ class _ActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final Color cardColor = isPrimary
-        ? QuantHomeScreen._textColor.withOpacity(0.1)
-        : Colors.white;
-    final Color borderColor = QuantHomeScreen._textColor.withOpacity(0.15);
+
+    final Color cardColor = Colors.white;
+    final Color borderColor = isPrimary
+        ? QuantHomeScreen._textColor.withOpacity(0.35)
+        : QuantHomeScreen._textColor.withOpacity(0.15);
 
     return Card(
       color: cardColor,
@@ -233,4 +222,3 @@ class _ActionCard extends StatelessWidget {
     );
   }
 }
-

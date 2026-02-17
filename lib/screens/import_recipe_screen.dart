@@ -5,7 +5,12 @@ import 'import_from_url_screen.dart';
 
 /// Screen for importing recipes with tabs for different import methods.
 class ImportRecipeScreen extends StatefulWidget {
-  const ImportRecipeScreen({super.key});
+  const ImportRecipeScreen({
+    super.key,
+    this.initialTab = 0,
+  });
+
+  final int initialTab;
 
   @override
   State<ImportRecipeScreen> createState() => _ImportRecipeScreenState();
@@ -18,7 +23,11 @@ class _ImportRecipeScreenState extends State<ImportRecipeScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTab.clamp(0, 1),
+    );
   }
 
   @override
@@ -53,4 +62,3 @@ class _ImportRecipeScreenState extends State<ImportRecipeScreen>
     );
   }
 }
-

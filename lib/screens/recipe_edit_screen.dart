@@ -100,6 +100,16 @@ class _RecipeEditScreenState extends State<RecipeEditScreen> {
     }
   }
 
+  List<String> _existingSections() {
+    final set = <String>{};
+    for (final ing in _editableIngredients) {
+      final s = normalizeSection(ing.section);
+      if (s != null && s.isNotEmpty) set.add(s);
+    }
+    final list = set.toList()..sort();
+    return list;
+  }
+
   Future<bool> _onWillPop() async {
     if (!_hasUnsavedChanges) {
       return true;
@@ -251,7 +261,11 @@ class _RecipeEditScreenState extends State<RecipeEditScreen> {
       onWillPop: _onWillPop,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(widget.isImportReview ? 'Gjennomgå oppskrift' : 'Rediger oppskrift'),
+          title: Text(
+            widget.isImportReview
+                ? 'Gjennomgå oppskrift'
+                : 'Rediger oppskrift',
+          ),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () async {
@@ -274,7 +288,7 @@ class _RecipeEditScreenState extends State<RecipeEditScreen> {
             else
               TextButton(
                 onPressed: _onSave,
-                child: Text(widget.isImportReview ? 'Lagre' : 'Oppdater'),
+                child: const Text('Lagre'),
               ),
           ],
         ),
@@ -393,6 +407,7 @@ class _RecipeEditScreenState extends State<RecipeEditScreen> {
                 final ingredient = entry.value;
                 return _EditableIngredientWidget(
                   ingredient: ingredient,
+                  sectionSuggestions: _existingSections(),
                   onChanged: (updated) {
                     setState(() {
                       _editableIngredients[index] = updated;
@@ -495,6 +510,7 @@ class _EditableIngredient {
 class _EditableIngredientWidget extends StatelessWidget {
   const _EditableIngredientWidget({
     required this.ingredient,
+    required this.sectionSuggestions,
     required this.onChanged,
     required this.onDelete,
   });
@@ -502,6 +518,8 @@ class _EditableIngredientWidget extends StatelessWidget {
   final _EditableIngredient ingredient;
   final void Function(_EditableIngredient) onChanged;
   final VoidCallback onDelete;
+  final List<String> sectionSuggestions;
+
 
   @override
   Widget build(BuildContext context) {
@@ -603,6 +621,58 @@ class _EditableIngredientWidget extends StatelessWidget {
                 ));
               },
             ),
+            const SizedBox(height: 8),
+            Autocomplete<String>(
+              initialValue: TextEditingValue(text: ingredient.section ?? ''),
+              optionsBuilder: (textEditingValue) {
+                final q = (normalizeSection(textEditingValue.text) ?? '').toLowerCase();
+                if (q.isEmpty) return sectionSuggestions;
+                return sectionSuggestions.where((s) => s.toLowerCase().contains(q));
+              },
+              onSelected: (selected) {
+                final normalized = normalizeSection(selected);
+                onChanged(_EditableIngredient(
+                  amount: ingredient.amount,
+                  unit: ingredient.unit,
+                  item: ingredient.item,
+                  notes: ingredient.notes,
+                  section: normalized,
+                ));
+              },
+              fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                void commit() {
+                  final normalized = normalizeSection(controller.text);
+                  if (normalized == ingredient.section) return;
+
+                  onChanged(_EditableIngredient(
+                    amount: ingredient.amount,
+                    unit: ingredient.unit,
+                    item: ingredient.item,
+                    notes: ingredient.notes,
+                    section: normalized,
+                  ));
+                }
+
+                return Focus(
+                  onFocusChange: (hasFocus) {
+                    if (!hasFocus) commit();
+                  },
+                  child: TextFormField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    decoration: const InputDecoration(
+                      labelText: 'Seksjon (valgfritt)',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                      helperText: 'Velg eksisterende eller skriv ny',
+                    ),
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => commit(),
+                  ),
+                );
+              },
+            ),
+
           ],
         ),
       ),
@@ -698,4 +768,20 @@ class _EditableStepWidget extends StatelessWidget {
       ),
     );
   }
+}
+
+String? normalizeSection(String? raw) {
+  if (raw == null) return null;
+
+  var s = raw.trim().replaceAll(RegExp(r'\s+'), ' ');
+  if (s.isEmpty) return null;
+
+  final parts = s.split(' ');
+  s = parts.map((w) {
+    if (w.isEmpty) return w;
+    final lower = w.toLowerCase();
+    return lower[0].toUpperCase() + lower.substring(1);
+  }).join(' ');
+
+  return s;
 }
