@@ -43,12 +43,6 @@ class CreateRecipeScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.add_circle_outline,
-                size: 80,
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
-              ),
-              const SizedBox(height: 24),
               Text(
                 'Lag en ny oppskrift',
                 style: textTheme.headlineSmall?.copyWith(
@@ -66,11 +60,11 @@ class CreateRecipeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 32),
 
-              FilledButton.icon(
+              OutlinedButton.icon(
                 onPressed: () => _createManual(context),
                 icon: const Icon(Icons.edit_outlined),
                 label: const Text('Lag manuelt'),
-                style: FilledButton.styleFrom(
+                style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                 ),
               ),
