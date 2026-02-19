@@ -1446,16 +1446,17 @@ class _EmptyState extends StatelessWidget {
 
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.menu_book_outlined, // behold bok-ikonet
-              size: 80,
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+              Icons.menu_book_outlined,
+              size: 72,
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.4),
             ),
             const SizedBox(height: 24),
+
             Text(
               'Ingen oppskrifter ennå',
               style: textTheme.headlineSmall?.copyWith(
@@ -1464,8 +1465,9 @@ class _EmptyState extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
+
             Text(
-              'Lag din første oppskrift, importer fra tekst/URL, eller bruk verktøy.',
+              'Lag din første oppskrift, importer, eller bruk et verktøy.',
               style: textTheme.bodyMedium?.copyWith(
                 color: textTheme.bodyMedium?.color?.withOpacity(0.7),
               ),
@@ -1473,65 +1475,49 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 32),
 
-            FilledButton.icon(
-              onPressed: () => _createNewRecipe(context),
-              icon: const Icon(Icons.add),
-              label: const Text('Lag første oppskrift'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              ),
+            _CreateActionCard(
+              icon: Icons.edit_outlined,
+              title: 'Lag manuelt',
+              subtitle: 'Start med en tom oppskrift.',
+              onTap: () => _createNewRecipe(context),
             ),
             const SizedBox(height: 12),
 
-            OutlinedButton.icon(
-              onPressed: () {
+            _CreateActionCard(
+              icon: Icons.text_snippet_outlined,
+              title: 'Importer fra tekst',
+              subtitle: 'Lim inn oppskrift fra notater eller nettside.',
+              onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => const ImportRecipeScreen(initialTab: 0),
+                    builder: (_) =>
+                    const ImportRecipeScreen(initialTab: 0),
                   ),
                 );
               },
-              icon: const Icon(Icons.text_snippet_outlined),
-              label: const Text('Importer fra tekst'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              ),
             ),
             const SizedBox(height: 12),
 
-            OutlinedButton.icon(
-              onPressed: () {
+            _CreateActionCard(
+              icon: Icons.link_outlined,
+              title: 'Importer fra URL',
+              subtitle: 'Hent oppskrift fra en lenke.',
+              onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => const ImportRecipeScreen(initialTab: 1),
+                    builder: (_) =>
+                    const ImportRecipeScreen(initialTab: 1),
                   ),
                 );
               },
-              icon: const Icon(Icons.link_outlined),
-              label: const Text('Importer fra URL'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              ),
             ),
             const SizedBox(height: 12),
 
-            OutlinedButton.icon(
-              onPressed: null, // kommer senere
-              icon: const Icon(Icons.image_outlined),
-              label: const Text('Importer fra bilde (kommer)'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            OutlinedButton.icon(
-              onPressed: () => _openTools(context),
-              icon: const Icon(Icons.handyman_outlined),
-              label: const Text('Bruk verktøy'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              ),
+            _CreateActionCard(
+              icon: Icons.calculate_outlined,
+              title: 'Lag fra verktøy',
+              subtitle: 'Bruk kalkulator og lagre resultatet.',
+              onTap: () => _openTools(context),
             ),
           ],
         ),
@@ -1825,6 +1811,107 @@ class _RecipeImageState extends State<_RecipeImage> {
               });
               return const SizedBox.shrink();
             },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CreateActionCard extends StatefulWidget {
+  const _CreateActionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+
+  @override
+  State<_CreateActionCard> createState() => _CreateActionCardState();
+}
+
+class _CreateActionCardState extends State<_CreateActionCard> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final enabled = widget.onTap != null;
+
+    return GestureDetector(
+      onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
+      onTapUp: enabled
+          ? (_) {
+        setState(() => _pressed = false);
+        widget.onTap?.call();
+      }
+          : null,
+      onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
+      child: AnimatedScale(
+        scale: _pressed ? 0.98 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: _pressed
+                ? Theme.of(context).colorScheme.primary.withOpacity(0.04)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: Theme.of(context).dividerColor.withOpacity(0.2),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                widget.icon,
+                size: 22,
+                color: enabled
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).disabledColor,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.title,
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: enabled
+                            ? textTheme.titleMedium?.color
+                            : Theme.of(context).disabledColor,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.subtitle,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: (enabled
+                            ? textTheme.bodySmall?.color
+                            : Theme.of(context).disabledColor)
+                            ?.withOpacity(0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                size: 18,
+                color: enabled
+                    ? Theme.of(context).colorScheme.onSurface.withOpacity(0.4)
+                    : Theme.of(context).disabledColor,
+              ),
+            ],
           ),
         ),
       ),

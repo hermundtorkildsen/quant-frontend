@@ -7,8 +7,8 @@ class AuthService {
   final AuthApi api;
   final TokenStore tokenStore;
 
-  Future<void> register(String email, String password) async {
-    final token = await api.register(email: email, password: password);
+  Future<void> register(String email, String password, String username) async {
+    final token = await api.register(email: email, password: password, username: username);
     await tokenStore.setToken(token);
   }
 

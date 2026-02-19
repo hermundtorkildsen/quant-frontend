@@ -4,18 +4,18 @@ import '../screens/quant_home_screen.dart';
 import 'auth_api.dart';
 import 'auth_service.dart';
 import 'token_store.dart';
-import 'register_screen.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _usernameController = TextEditingController();
 
   bool _loading = false;
   String? _error;
@@ -42,25 +42,34 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _usernameController.dispose();
     super.dispose();
   }
 
-  Future<void> _doLogin() async {
+  Future<void> _doRegister() async {
     setState(() {
       _loading = true;
       _error = null;
     });
 
     try {
-      await _auth.login(
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
+      final username = _usernameController.text.trim().toLowerCase();
 
+      if (!RegExp(r'^[a-z0-9_]{3,20}$').hasMatch(username)) {
+        throw Exception('Brukernavn må være 3–20 tegn og kun a-z, 0-9 eller _.');
+      }
+      if (password.length < 10) {
+        throw Exception('Passord må være minst 10 tegn.');
+      }
+
+      await _auth.register(email, password, username);
       if (!mounted) return;
 
-      Navigator.of(context).pushReplacement(
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const QuantHomeScreen()),
+            (_) => false,
       );
     } catch (e) {
       setState(() => _error = e.toString());
@@ -72,7 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Logg inn')),
+      appBar: AppBar(title: const Text('Opprett konto')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -86,8 +95,13 @@ class _LoginScreenState extends State<LoginScreen> {
             TextField(
               controller: _passwordController,
               obscureText: true,
+              decoration: const InputDecoration(labelText: 'Passord (min 10 tegn)'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _usernameController,
               decoration: const InputDecoration(
-                labelText: 'Passord (min 10 tegn)',
+                labelText: 'Brukernavn (3–20, a-z 0-9 _)',
               ),
             ),
             const SizedBox(height: 16),
@@ -100,26 +114,16 @@ class _LoginScreenState extends State<LoginScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _loading ? null : _doLogin,
+                onPressed: _loading ? null : _doRegister,
                 child: _loading
                     ? const Text('...')
-                    : const Text('Login'),
+                    : const Text('Opprett konto'),
               ),
             ),
-
             const SizedBox(height: 8),
-
             TextButton(
-              onPressed: _loading
-                  ? null
-                  : () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const RegisterScreen(),
-                  ),
-                );
-              },
-              child: const Text('Opprett konto'),
+              onPressed: _loading ? null : () => Navigator.of(context).pop(),
+              child: const Text('Tilbake til login'),
             ),
           ],
         ),

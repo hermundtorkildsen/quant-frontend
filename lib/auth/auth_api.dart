@@ -3,6 +3,8 @@ import 'package:http/http.dart' as http;
 
 import '../api/api_exceptions.dart';
 
+import 'package:flutter/foundation.dart';
+
 class AuthApi {
   AuthApi({required this.baseUrl, http.Client? httpClient})
       : _http = httpClient ?? http.Client();
@@ -13,13 +15,21 @@ class AuthApi {
   Future<String> register({
     required String email,
     required String password,
+    required String username,
   }) async {
     final uri = Uri.parse('$baseUrl/api/auth/register');
     final res = await _http.post(
       uri,
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'password': password}),
+      body: jsonEncode({
+        'email': email,
+        'password': password,
+        'username': username,
+      }),
     );
+
+    debugPrint('AUTH CALL: ${uri.toString()} -> ${res.statusCode}');
+    debugPrint('AUTH BODY: ${res.body}');
 
     if (res.statusCode != 200) {
       throw _toApiException(
@@ -40,7 +50,10 @@ class AuthApi {
     final res = await _http.post(
       uri,
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'password': password}),
+      body: jsonEncode({
+        'email': email,
+        'password': password,
+      }),
     );
 
     if (res.statusCode != 200) {
