@@ -622,15 +622,16 @@ class _EditableIngredientWidget extends StatelessWidget {
               },
             ),
             const SizedBox(height: 8),
-            Autocomplete<String>(
-              initialValue: TextEditingValue(text: ingredient.section ?? ''),
-              optionsBuilder: (textEditingValue) {
-                final q = (normalizeSection(textEditingValue.text) ?? '').toLowerCase();
-                if (q.isEmpty) return sectionSuggestions;
-                return sectionSuggestions.where((s) => s.toLowerCase().contains(q));
-              },
-              onSelected: (selected) {
-                final normalized = normalizeSection(selected);
+            TextFormField(
+              initialValue: ingredient.section ?? '',
+              decoration: const InputDecoration(
+                labelText: 'Seksjon (valgfritt)',
+                border: OutlineInputBorder(),
+                isDense: true,
+                helperText: 'Skriv ny seksjon',
+              ),
+              onChanged: (value) {
+                final normalized = normalizeSection(value);
                 onChanged(_EditableIngredient(
                   amount: ingredient.amount,
                   unit: ingredient.unit,
@@ -639,40 +640,7 @@ class _EditableIngredientWidget extends StatelessWidget {
                   section: normalized,
                 ));
               },
-              fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                void commit() {
-                  final normalized = normalizeSection(controller.text);
-                  if (normalized == ingredient.section) return;
-
-                  onChanged(_EditableIngredient(
-                    amount: ingredient.amount,
-                    unit: ingredient.unit,
-                    item: ingredient.item,
-                    notes: ingredient.notes,
-                    section: normalized,
-                  ));
-                }
-
-                return Focus(
-                  onFocusChange: (hasFocus) {
-                    if (!hasFocus) commit();
-                  },
-                  child: TextFormField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    decoration: const InputDecoration(
-                      labelText: 'Seksjon (valgfritt)',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                      helperText: 'Velg eksisterende eller skriv ny',
-                    ),
-                    textInputAction: TextInputAction.done,
-                    onFieldSubmitted: (_) => commit(),
-                  ),
-                );
-              },
             ),
-
           ],
         ),
       ),

@@ -33,24 +33,27 @@ String? _getOriginLabel(Recipe recipe) {
 
 String? _importLabel(String? importMethod) {
   if (importMethod == null) return null;
-  if (importMethod == 'calculator') {
-    return 'Fra pizzakalkulator';
+
+  switch (importMethod) {
+    case 'calculator':
+      return 'Fra pizzakalkulator';
+
+    case 'plain_text':
+    case 'text':
+    case 'stub':
+      return 'Importert fra tekst';
+
+    case 'url':
+      return 'Importert fra URL';
+
+    case 'manual':
+      return 'Manuelt opprettet';
+
+    default:
+      return null;
   }
-
-  final isTextImport = importMethod == 'text' ||
-      importMethod == 'plain_text' ||
-      importMethod == 'stub';
-
-  if (isTextImport) {
-    return 'Importert fra tekst';
-  }
-
-  if (importMethod == 'manual') {
-    return 'Manuelt opprettet';
-  }
-
-  return 'Manuelt opprettet';
 }
+
 
 /// Reusable widget that displays import method and category chips for a recipe.
 class RecipeOriginAndCategoryChips extends StatelessWidget {

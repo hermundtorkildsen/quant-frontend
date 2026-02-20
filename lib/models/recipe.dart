@@ -82,6 +82,7 @@ class Ingredient {
       unit: json['unit'] as String?,
       item: json['item'] as String,
       notes: json['notes'] as String?,
+      section: json['section'] as String?,
     );
   }
 
@@ -91,6 +92,7 @@ class Ingredient {
       'unit': unit,
       'item': item,
       'notes': notes,
+      'section': section,
     };
   }
 }
