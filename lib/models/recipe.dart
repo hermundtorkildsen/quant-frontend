@@ -11,6 +11,7 @@ class Recipe {
     this.ingredients = const [],
     this.steps = const [],
     this.metadata,
+    this.sharedFromUsername,
   });
 
   final String id;
@@ -20,6 +21,7 @@ class Recipe {
   final List<Ingredient> ingredients;
   final List<RecipeStep> steps;
   final RecipeMetadata? metadata;
+  final String? sharedFromUsername;
 
   factory Recipe.fromJson(Map<String, dynamic> json) {
     // Handle nullable id from backend
@@ -42,6 +44,7 @@ class Recipe {
       metadata: json['metadata'] != null
           ? RecipeMetadata.fromJson(json['metadata'] as Map<String, dynamic>)
           : null,
+      sharedFromUsername: json['sharedFromUsername'] as String?,
     );
   }
 

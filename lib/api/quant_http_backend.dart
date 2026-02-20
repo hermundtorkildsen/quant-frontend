@@ -62,6 +62,14 @@ class QuantBackendHttp implements QuantBackend {
   }
 
   @override
+  Future<void> shareRecipe(String recipeId, String toUsername) {
+    return _guardAuth(() async {
+      await _apiClient.shareRecipe(recipeId, toUsername);
+    });
+  }
+
+
+  @override
   Future<Recipe> importRecipeFromText(String rawText, {String? sourceUrl}) {
     return _guardAuth(() async {
       final request = ImportRecipeRequestDto(
@@ -82,33 +90,36 @@ class QuantBackendHttp implements QuantBackend {
       servings: dto.servings,
       ingredients: dto.ingredients
           .map((ing) => Ingredient(
-                amount: ing.amount,
-                unit: ing.unit,
-                item: ing.item,
-                notes: ing.notes,
-                section: ing.section,
-              ))
+        amount: ing.amount,
+        unit: ing.unit,
+        item: ing.item,
+        notes: ing.notes,
+        section: ing.section,
+      ))
           .toList(),
       steps: dto.steps
           .map((step) => RecipeStep(
-                step: step.step,
-                instruction: step.instruction,
-                notes: step.notes,
-              ))
+        step: step.step,
+        instruction: step.instruction,
+        notes: step.notes,
+      ))
           .toList(),
       metadata: dto.metadata != null
           ? RecipeMetadata(
-              sourceUrl: dto.metadata!.sourceUrl,
-              author: dto.metadata!.author,
-              language: dto.metadata!.language,
-              categories: dto.metadata!.categories,
-              imageUrl: dto.metadata!.imageUrl,
-              calculatorId: dto.metadata!.calculatorId,
-              importMethod: dto.metadata!.importMethod,
-            )
+        sourceUrl: dto.metadata!.sourceUrl,
+        author: dto.metadata!.author,
+        language: dto.metadata!.language,
+        categories: dto.metadata!.categories,
+        imageUrl: dto.metadata!.imageUrl,
+        calculatorId: dto.metadata!.calculatorId,
+        importMethod: dto.metadata!.importMethod,
+      )
           : null,
+
+      sharedFromUsername: dto.sharedFromUsername,
     );
   }
+
 
   RecipeDto _recipeToDto(Recipe recipe) {
     return RecipeDto(

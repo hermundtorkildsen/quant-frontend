@@ -12,6 +12,7 @@ class RecipeDto {
     this.ingredients = const [],
     this.steps = const [],
     this.metadata,
+    this.sharedFromUsername,
   });
 
   final String? id;
@@ -21,6 +22,7 @@ class RecipeDto {
   final List<IngredientDto> ingredients;
   final List<RecipeStepDto> steps;
   final RecipeMetadataDto? metadata;
+  final String? sharedFromUsername;
 
   factory RecipeDto.fromJson(Map<String, dynamic> json) {
     return RecipeDto(
@@ -37,6 +39,7 @@ class RecipeDto {
       metadata: json['metadata'] != null
           ? RecipeMetadataDto.fromJson(json['metadata'] as Map<String, dynamic>)
           : null,
+      sharedFromUsername: json['sharedFromUsername'] as String?,
     );
   }
 

@@ -160,6 +160,30 @@ class QuantApiClient {
     }
   }
 
+  /// Share a recipe with another user by username.
+  ///
+  /// POST /api/recipes/{id}/share
+  Future<void> shareRecipe(String recipeId, String toUsername) async {
+    final uri = Uri.parse('$baseUrl/api/recipes/$recipeId/share');
+
+    final response = await _http.post(
+      uri,
+      headers: await _authHeaders(json: true),
+      body: jsonEncode({
+        "toUsername": toUsername,
+      }),
+    );
+
+    _throwIfUnauthorized(response);
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception(
+        'Failed to share recipe: ${response.statusCode} ${response.reasonPhrase} ${response.body}',
+      );
+    }
+  }
+
+
   /// Import a recipe from raw text using AI parsing.
   ///
   /// POST /api/recipes/import-text

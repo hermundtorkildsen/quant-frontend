@@ -22,6 +22,8 @@ abstract class QuantBackend {
 
   Future<void> deleteRecipe(String id);
 
+  Future<void> shareRecipe(String recipeId, String toUsername);
+
   /// Import a recipe from raw free text (and optional source URL).
   /// In production this would call an AI/parse endpoint on the backend.
   Future<Recipe> importRecipeFromText(String rawText, {String? sourceUrl});
@@ -61,6 +63,12 @@ class QuantBackendMock implements QuantBackend {
     // The UI will call saveRecipe() explicitly after user confirms.
     return await mockImportFromText(rawText, sourceUrl: sourceUrl?.trim());
   }
+
+  @override
+  Future<void> shareRecipe(String recipeId, String toUsername) async {
+    // Ikke implementert i mock
+  }
+
 }
 
 /// Global backend instance for the app. This allows the UI to use a single

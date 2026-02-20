@@ -628,6 +628,18 @@ class _RecipeListTile extends StatelessWidget {
               const SizedBox(height: 4),
               Text(servingsText),
             ],
+            if (recipe.sharedFromUsername != null &&
+                recipe.sharedFromUsername!.trim().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Delt av ${recipe.sharedFromUsername}',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: textTheme.bodySmall?.color?.withOpacity(0.7),
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
             Builder(
               builder: (context) {
                 final originLabel = _getOriginLabel(recipe);
@@ -685,6 +697,9 @@ class _RecipeListTile extends StatelessWidget {
   }
 }
 
+enum _RecipeMenuAction { shareInApp, shareAsText, duplicate, delete }
+
+
 class RecipeDetailScreen extends StatefulWidget {
   const RecipeDetailScreen({super.key, required this.recipe});
 
@@ -737,20 +752,46 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       appBar: AppBar(
         title: const Text('Oppskrift'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.share),
-            tooltip: 'Del',
-            onPressed: _onTapShare,
-          ),
-          IconButton(
-            icon: const Icon(Icons.copy_outlined),
-            tooltip: 'Dupliser',
-            onPressed: _duplicateRecipe,
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: 'Slett',
-            onPressed: _onTapDelete,
+          PopupMenuButton<_RecipeMenuAction>(
+            tooltip: 'Meny',
+            onSelected: (action) async {
+              switch (action) {
+                case _RecipeMenuAction.shareInApp:
+                  await _onTapShareInApp();
+                  break;
+
+                case _RecipeMenuAction.shareAsText:
+                  await _onTapShare();
+                  break;
+
+                case _RecipeMenuAction.duplicate:
+                  await _duplicateRecipe();
+                  break;
+
+                case _RecipeMenuAction.delete:
+                  await _onTapDelete();
+                  break;
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: _RecipeMenuAction.shareInApp,
+                child: Text('Del i app'),
+              ),
+              PopupMenuItem(
+                value: _RecipeMenuAction.shareAsText,
+                child: Text('Del som tekst'),
+              ),
+              PopupMenuItem(
+                value: _RecipeMenuAction.duplicate,
+                child: Text('Dupliser'),
+              ),
+              PopupMenuDivider(),
+              PopupMenuItem(
+                value: _RecipeMenuAction.delete,
+                child: Text('Slett'),
+              ),
+            ],
           ),
         ],
       ),
@@ -789,27 +830,38 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                   style: textTheme.bodyLarge,
                 ),
               ),
-            if (_recipe.metadata?.sourceUrl != null &&
-                _recipe.metadata!.sourceUrl!.isNotEmpty)
+            if ((_recipe.metadata?.sourceUrl ?? '').trim().isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.link,
-                      size: 16,
-                      color: textTheme.bodyMedium?.color?.withOpacity(0.7),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Kilde: ${_recipe.metadata!.sourceUrl}',
-                        style: textTheme.bodyMedium?.copyWith(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => _showSourceUrlSheet(_recipe.metadata!.sourceUrl!.trim()),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.link,
+                          size: 16,
                           color: textTheme.bodyMedium?.color?.withOpacity(0.7),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Kilde (trykk for å se/kopiere)',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: textTheme.bodyMedium?.color?.withOpacity(0.85),
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             if (_recipe.servings != null)
@@ -911,6 +963,53 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     );
   }
 
+  Future<void> _onTapShareInApp() async {
+    final controller = TextEditingController();
+
+    final username = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Del i app'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Brukernavn',
+            hintText: 'f.eks. asd',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(null),
+            child: const Text('Avbryt'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              Navigator.of(dialogContext).pop(value.isEmpty ? null : value);
+            },
+            child: const Text('Del'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || username == null) return;
+
+    try {
+      await quantBackend.shareRecipe(_recipe.id, username);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Oppskrift delt med $username')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Kunne ikke dele: $e')),
+      );
+    }
+  }
+
   void _onTapScale() async {
     if (_recipe.servings == null || _recipe.servings == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -957,6 +1056,62 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       _scaledServings = null;
     });
   }
+
+  void _showSourceUrlSheet(String url) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Kilde',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              SelectableText(
+                url,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        await Clipboard.setData(ClipboardData(text: url));
+                        if (!context.mounted) return;
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          const SnackBar(content: Text('Lenke kopiert')),
+                        );
+                      },
+                      icon: const Icon(Icons.copy),
+                      label: const Text('Kopier'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Lukk'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
 
   Future<void> _duplicateRecipe() async {
     try {
