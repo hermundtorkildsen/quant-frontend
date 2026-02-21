@@ -191,6 +191,24 @@ class QuantApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> getMe() async {
+    final uri = Uri.parse('$baseUrl/api/users/me');
+    final response = await _http.get(
+      uri,
+      headers: await _authHeaders(),
+    );
+
+    _throwIfUnauthorized(response);
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Failed to load me: ${response.statusCode} ${response.reasonPhrase}',
+      );
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    return json;
+  }
 
 
   /// Import a recipe from raw text using AI parsing.
@@ -319,6 +337,8 @@ class QuantApiClient {
       );
     }
   }
+
+
 
 
 

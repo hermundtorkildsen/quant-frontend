@@ -163,13 +163,43 @@ class _HeaderSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Velkommen',
-          style: textTheme.labelMedium?.copyWith(
-            letterSpacing: 1.1,
-            fontWeight: FontWeight.w600,
-            color: QuantHomeScreen._textColor.withOpacity(0.75),
-          ),
+        FutureBuilder<Map<String, dynamic>>(
+          future: quantBackend.getMe(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Text(
+                'Velkommen',
+                style: textTheme.labelMedium?.copyWith(
+                  letterSpacing: 1.1,
+                  fontWeight: FontWeight.w600,
+                  color: QuantHomeScreen._textColor.withOpacity(0.75),
+                ),
+              );
+            }
+
+            if (snapshot.hasError) {
+              return Text(
+                'Velkommen',
+                style: textTheme.labelMedium?.copyWith(
+                  letterSpacing: 1.1,
+                  fontWeight: FontWeight.w600,
+                  color: QuantHomeScreen._textColor.withOpacity(0.75),
+                ),
+              );
+            }
+
+            final username = (snapshot.data?['username'] ?? '').toString().trim();
+            final greeting = username.isNotEmpty ? 'Velkommen, $username' : 'Velkommen';
+
+            return Text(
+              greeting,
+              style: textTheme.labelMedium?.copyWith(
+                letterSpacing: 1.1,
+                fontWeight: FontWeight.w600,
+                color: QuantHomeScreen._textColor.withOpacity(0.75),
+              ),
+            );
+          },
         ),
         const SizedBox(height: 8),
         Text(

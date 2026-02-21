@@ -117,6 +117,13 @@ class QuantBackendHttp implements QuantBackend {
     });
   }
 
+  @override
+  Future<Map<String, dynamic>> getMe() {
+    return _guardAuth(() async {
+      return await _apiClient.getMe();
+    });
+  }
+
 
 
 

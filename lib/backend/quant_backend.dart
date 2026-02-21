@@ -31,6 +31,9 @@ abstract class QuantBackend {
   Future<List<Map<String, dynamic>>> getInbox();
   Future<Recipe> acceptShare(String shareId);
   Future<void> declineShare(String shareId);
+  Future<Map<String, dynamic>> getMe();
+
+
 
 }
 
@@ -88,6 +91,13 @@ class QuantBackendMock implements QuantBackend {
   @override
   Future<void> declineShare(String shareId) async {
     // noop
+  }
+
+  @override
+  Future<Map<String, dynamic>> getMe() async {
+    return {
+      'username': 'mockuser',
+    };
   }
 
 
