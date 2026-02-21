@@ -163,15 +163,23 @@ class QuantApiClient {
   /// Share a recipe with another user by username.
   ///
   /// POST /api/recipes/{id}/share
-  Future<void> shareRecipe(String recipeId, String toUsername) async {
+  Future<void> shareRecipe(
+      String recipeId,
+      String toUsername, {
+        String? message,
+      }) async {
     final uri = Uri.parse('$baseUrl/api/recipes/$recipeId/share');
+
+    final body = {
+      "toUsername": toUsername,
+      if (message != null && message.trim().isNotEmpty)
+        "message": message.trim(),
+    };
 
     final response = await _http.post(
       uri,
       headers: await _authHeaders(json: true),
-      body: jsonEncode({
-        "toUsername": toUsername,
-      }),
+      body: jsonEncode(body),
     );
 
     _throwIfUnauthorized(response);
@@ -182,6 +190,7 @@ class QuantApiClient {
       );
     }
   }
+
 
 
   /// Import a recipe from raw text using AI parsing.
@@ -236,6 +245,82 @@ class QuantApiClient {
 
     throw AuthExpiredException(message: msg);
   }
+
+  Future<int> getInboxCount() async {
+    final uri = Uri.parse('$baseUrl/api/shares/inbox/count');
+    final response = await _http.get(
+      uri,
+      headers: await _authHeaders(),
+    );
+
+    _throwIfUnauthorized(response);
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Failed to load inbox count: ${response.statusCode} ${response.reasonPhrase}',
+      );
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    return json['count'] as int;
+  }
+
+
+  Future<List<Map<String, dynamic>>> getInbox() async {
+    final uri = Uri.parse('$baseUrl/api/shares/inbox');
+    final response = await _http.get(
+      uri,
+      headers: await _authHeaders(),
+    );
+
+    _throwIfUnauthorized(response);
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Failed to load inbox: ${response.statusCode} ${response.reasonPhrase}',
+      );
+    }
+
+    final List<dynamic> jsonList = jsonDecode(response.body);
+    return jsonList.cast<Map<String, dynamic>>();
+  }
+
+  Future<RecipeDto> acceptShare(String shareId) async {
+    final uri = Uri.parse('$baseUrl/api/shares/$shareId/accept');
+    final response = await _http.post(
+      uri,
+      headers: await _authHeaders(),
+    );
+
+    _throwIfUnauthorized(response);
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Failed to accept share: ${response.statusCode} ${response.reasonPhrase}',
+      );
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    return RecipeDto.fromJson(json);
+  }
+
+  Future<void> declineShare(String shareId) async {
+    final uri = Uri.parse('$baseUrl/api/shares/$shareId/decline');
+    final response = await _http.post(
+      uri,
+      headers: await _authHeaders(),
+    );
+
+    _throwIfUnauthorized(response);
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Failed to decline share: ${response.statusCode} ${response.reasonPhrase}',
+      );
+    }
+  }
+
+
 
 
 

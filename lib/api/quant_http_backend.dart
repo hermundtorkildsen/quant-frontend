@@ -62,11 +62,25 @@ class QuantBackendHttp implements QuantBackend {
   }
 
   @override
-  Future<void> shareRecipe(String recipeId, String toUsername) {
+  Future<void> shareRecipe(
+      String recipeId,
+      String toUsername, {
+        String? message,
+      }) {
     return _guardAuth(() async {
-      await _apiClient.shareRecipe(recipeId, toUsername);
+      await _apiClient.shareRecipe(
+        recipeId,
+        toUsername,
+        message: message,
+      );
     });
   }
+
+  @override
+  Future<void> declineShare(String shareId) async {
+    await _apiClient.declineShare(shareId);
+  }
+
 
 
   @override
@@ -80,6 +94,30 @@ class QuantBackendHttp implements QuantBackend {
       return _dtoToRecipe(dto);
     });
   }
+
+  @override
+  Future<int> getInboxCount() {
+    return _guardAuth(() async {
+      return await _apiClient.getInboxCount();
+    });
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getInbox() {
+    return _guardAuth(() async {
+      return await _apiClient.getInbox();
+    });
+  }
+
+  @override
+  Future<Recipe> acceptShare(String shareId) {
+    return _guardAuth(() async {
+      final dto = await _apiClient.acceptShare(shareId);
+      return _dtoToRecipe(dto);
+    });
+  }
+
+
 
 
   Recipe _dtoToRecipe(RecipeDto dto) {

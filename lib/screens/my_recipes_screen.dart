@@ -143,6 +143,8 @@ class MyRecipesScreen extends StatefulWidget {
   State<MyRecipesScreen> createState() => _MyRecipesScreenState();
 }
 
+enum _SharedFilter { all, mine, sharedWithMe }
+
 class _MyRecipesScreenState extends State<MyRecipesScreen> {
   String _searchQuery = '';
   String? _selectedTag;
@@ -150,6 +152,7 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
   late final TextEditingController _searchController;
   late Future<List<Recipe>> _recipesFuture;
   RecipeSortMode _sortMode = RecipeSortMode.titleAsc;
+  _SharedFilter _sharedFilter = _SharedFilter.all;
   Timer? _searchDebounce;
 
   @override
@@ -240,27 +243,52 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
 
           // Apply origin filter first
           var filtered = recipes;
+          String _norm(String? s) => (s ?? '').trim().toLowerCase();
+
           switch (_originFilter) {
             case RecipeOriginFilter.manual:
               filtered = recipes.where((r) {
-                final m = r.metadata;
-                final method = m?.importMethod;
-                return method == 'manual' || method == null;
+                final method = _norm(r.metadata?.importMethod);
+                return method.isEmpty || method == 'manual';
               }).toList();
               break;
+
             case RecipeOriginFilter.pizzaCalculator:
               filtered = recipes.where((r) {
-                final m = r.metadata;
-                return m?.importMethod == 'calculator' && m?.calculatorId == 'pizza';
+                final method = _norm(r.metadata?.importMethod);
+                return method == 'calculator';
               }).toList();
               break;
+
             case RecipeOriginFilter.imported:
-              filtered = recipes.where((r) => r.metadata?.importMethod == 'text').toList();
+              filtered = recipes.where((r) {
+                final method = _norm(r.metadata?.importMethod);
+                return method == 'text' ||
+                    method == 'plain_text' ||
+                    method == 'stub' ||
+                    method == 'url' ||
+                    method == 'image';
+              }).toList();
               break;
+
             case RecipeOriginFilter.all:
-              // keep as-is
               break;
           }
+
+          // Apply shared filter (mine vs delt med meg)
+          filtered = filtered.where((r) {
+            final sharedFrom = (r.sharedFromUsername ?? '').trim(); // evt sharedFromUsername hvis du har det
+            final isSharedWithMe = sharedFrom.isNotEmpty;
+
+            switch (_sharedFilter) {
+              case _SharedFilter.all:
+                return true;
+              case _SharedFilter.mine:
+                return !isSharedWithMe;
+              case _SharedFilter.sharedWithMe:
+                return isSharedWithMe;
+            }
+          }).toList();
 
           // Apply search and tag filters
           filtered = filtered.where((recipe) {
@@ -289,61 +317,9 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
 
           final hasActiveFilters =
               _searchQuery.trim().isNotEmpty ||
-              _selectedTag != null ||
-              _originFilter != RecipeOriginFilter.all;
-
-          if (filtered.isEmpty) {
-            return Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _OriginFilterRow(
-                    selectedFilter: _originFilter,
-                    onFilterSelected: (filter) {
-                      setState(() {
-                        _originFilter = filter;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  _RecipeSearchBar(
-                    controller: _searchController,
-                    onChanged: _onSearchChanged,
-                  ),
-                  const SizedBox(height: 8),
-                  _TagFilterRow(
-                    tags: allTags,
-                    selectedTag: _selectedTag,
-                    onTagSelected: (tag) {
-                      setState(() {
-                        _selectedTag = tag == _selectedTag ? null : tag;
-                      });
-                    },
-                  ),
-                  if (hasActiveFilters) ...[
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _searchQuery = '';
-                          _selectedTag = null;
-                          _originFilter = RecipeOriginFilter.all;
-                          _searchController.clear();
-                        });
-                      },
-                      child: const Text('Nullstill filtre'),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  Text(
-                    'Ingen oppskrifter matcher filtrene dine.',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ],
-              ),
-            );
-          }
+                  _selectedTag != null ||
+                  _originFilter != RecipeOriginFilter.all ||
+                  _sharedFilter != _SharedFilter.all;
 
           return ListView.separated(
             padding: const EdgeInsets.only(
@@ -360,13 +336,60 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _OriginFilterRow(
-                      selectedFilter: _originFilter,
-                      onFilterSelected: (filter) {
-                        setState(() {
-                          _originFilter = filter;
-                        });
-                      },
+                    const SizedBox(height: 8),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              ChoiceChip(
+                                label: const Text('Alle'),
+                                selected: _sharedFilter == _SharedFilter.all,
+                                onSelected: (_) => setState(() => _sharedFilter = _SharedFilter.all),
+                              ),
+                              ChoiceChip(
+                                label: const Text('Mine'),
+                                selected: _sharedFilter == _SharedFilter.mine,
+                                onSelected: (_) => setState(() => _sharedFilter = _SharedFilter.mine),
+                              ),
+                              ChoiceChip(
+                                label: const Text('Delt'), // <-- endre
+                                selected: _sharedFilter == _SharedFilter.sharedWithMe,
+                                onSelected: (_) => setState(() => _sharedFilter = _SharedFilter.sharedWithMe),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        PopupMenuButton<RecipeOriginFilter>(
+                          tooltip: 'Kilde',
+                          onSelected: (filter) => setState(() => _originFilter = filter),
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(
+                              value: RecipeOriginFilter.all,
+                              child: Text('Kilde: Alle'),
+                            ),
+                            PopupMenuItem(
+                              value: RecipeOriginFilter.manual,
+                              child: Text('Kilde: Manuell'),
+                            ),
+                            PopupMenuItem(
+                              value: RecipeOriginFilter.imported,
+                              child: Text('Kilde: Import'),
+                            ),
+                            PopupMenuItem(
+                              value: RecipeOriginFilter.pizzaCalculator,
+                              child: Text('Kilde: Kalkulator'),
+                            ),
+                          ],
+                          child: Chip(
+                            label: Text('Kilde: ${_originLabel(_originFilter)}  ▾'),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 8),
                     _RecipeSearchBar(
@@ -391,15 +414,25 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
                             _searchQuery = '';
                             _selectedTag = null;
                             _originFilter = RecipeOriginFilter.all;
+                            _sharedFilter = _SharedFilter.all; // <-- LEGG TIL
                             _searchController.clear();
                           });
                         },
                         child: const Text('Nullstill filtre'),
                       ),
                     ],
+                    if (filtered.isEmpty)
+                      Text(
+                        'Ingen oppskrifter matcher filtrene dine.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
                     const SizedBox(height: 12),
                   ],
                 );
+              }
+
+              if (filtered.isEmpty) {
+                return const SizedBox.shrink();
               }
 
               final recipe = filtered[index - 1];
@@ -412,6 +445,18 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
         },
       ),
     );
+  }
+  String _originLabel(RecipeOriginFilter f) {
+    switch (f) {
+      case RecipeOriginFilter.all:
+        return 'Alle';
+      case RecipeOriginFilter.manual:
+        return 'Manuell';
+      case RecipeOriginFilter.imported:
+        return 'Import';
+      case RecipeOriginFilter.pizzaCalculator:
+        return 'Kalkulator';
+    }
   }
 }
 
@@ -454,49 +499,49 @@ enum RecipeOriginFilter {
   imported,
 }
 
-class _OriginFilterRow extends StatelessWidget {
-  const _OriginFilterRow({
-    required this.selectedFilter,
-    required this.onFilterSelected,
-  });
-
-  final RecipeOriginFilter selectedFilter;
-  final ValueChanged<RecipeOriginFilter> onFilterSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          ChoiceChip(
-            label: const Text('Alle'),
-            selected: selectedFilter == RecipeOriginFilter.all,
-            onSelected: (_) => onFilterSelected(RecipeOriginFilter.all),
-          ),
-          const SizedBox(width: 8),
-          ChoiceChip(
-            label: const Text('Manuelt'),
-            selected: selectedFilter == RecipeOriginFilter.manual,
-            onSelected: (_) => onFilterSelected(RecipeOriginFilter.manual),
-          ),
-          const SizedBox(width: 8),
-          ChoiceChip(
-            label: const Text('Pizzakalkulator'),
-            selected: selectedFilter == RecipeOriginFilter.pizzaCalculator,
-            onSelected: (_) => onFilterSelected(RecipeOriginFilter.pizzaCalculator),
-          ),
-          const SizedBox(width: 8),
-          ChoiceChip(
-            label: const Text('Importert'),
-            selected: selectedFilter == RecipeOriginFilter.imported,
-            onSelected: (_) => onFilterSelected(RecipeOriginFilter.imported),
-          ),
-        ],
-      ),
-    );
-  }
-}
+//class _OriginFilterRow extends StatelessWidget {
+//  const _OriginFilterRow({
+//    required this.selectedFilter,
+//    required this.onFilterSelected,
+//  });
+//
+//  final RecipeOriginFilter selectedFilter;
+//  final ValueChanged<RecipeOriginFilter> onFilterSelected;
+//
+//  @override
+//  Widget build(BuildContext context) {
+//    return SingleChildScrollView(
+//      scrollDirection: Axis.horizontal,
+//      child: Row(
+//        children: [
+//          ChoiceChip(
+//            label: const Text('Alle'),
+//            selected: selectedFilter == RecipeOriginFilter.all,
+//            onSelected: (_) => onFilterSelected(RecipeOriginFilter.all),
+//          ),
+//          const SizedBox(width: 8),
+//          ChoiceChip(
+//            label: const Text('Manuelt'),
+//            selected: selectedFilter == RecipeOriginFilter.manual,
+//            onSelected: (_) => onFilterSelected(RecipeOriginFilter.manual),
+//          ),
+//          const SizedBox(width: 8),
+//          ChoiceChip(
+//            label: const Text('Pizzakalkulator'),
+//            selected: selectedFilter == RecipeOriginFilter.pizzaCalculator,
+//            onSelected: (_) => onFilterSelected(RecipeOriginFilter.pizzaCalculator),
+//          ),
+//          const SizedBox(width: 8),
+//          ChoiceChip(
+//            label: const Text('Importert'),
+//            selected: selectedFilter == RecipeOriginFilter.imported,
+//            onSelected: (_) => onFilterSelected(RecipeOriginFilter.imported),
+//          ),
+//        ],
+//      ),
+//    );
+//  }
+//}
 
 class _TagFilterRow extends StatelessWidget {
   const _TagFilterRow({
@@ -710,6 +755,13 @@ class RecipeDetailScreen extends StatefulWidget {
 
   @override
   State<RecipeDetailScreen> createState() => _RecipeDetailScreenState();
+}
+
+class _ShareDialogResult {
+  final String username;
+  final String? message;
+
+  _ShareDialogResult({required this.username, this.message});
 }
 
 class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
@@ -967,43 +1019,74 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   Future<void> _onTapShareInApp() async {
-    final controller = TextEditingController();
-
-    final username = await showDialog<String>(
+    final result = await showDialog<_ShareDialogResult>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Del i app'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Brukernavn',
-            hintText: 'f.eks. asd',
+      builder: (dialogContext) {
+        final usernameController = TextEditingController();
+        final messageController = TextEditingController();
+
+        return AlertDialog(
+          title: const Text('Del i app'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: usernameController,
+                decoration: const InputDecoration(
+                  labelText: 'Brukernavn',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: messageController,
+                decoration: const InputDecoration(
+                  labelText: 'Melding (valgfri)',
+                ),
+                maxLines: 3,
+              ),
+            ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(null),
-            child: const Text('Avbryt'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final value = controller.text.trim();
-              Navigator.of(dialogContext).pop(value.isEmpty ? null : value);
-            },
-            child: const Text('Del'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(null),
+              child: const Text('Avbryt'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final username = usernameController.text.trim();
+                final message = messageController.text.trim();
+
+                if (username.isEmpty) {
+                  Navigator.of(dialogContext).pop(null);
+                  return;
+                }
+
+                Navigator.of(dialogContext).pop(
+                  _ShareDialogResult(
+                    username: username,
+                    message: message.isEmpty ? null : message,
+                  ),
+                );
+              },
+              child: const Text('Del'),
+            ),
+          ],
+        );
+      },
     );
 
-    if (!mounted || username == null) return;
+    if (!mounted || result == null) return;
 
     try {
-      await quantBackend.shareRecipe(_recipe.id, username);
+      await quantBackend.shareRecipe(
+        _recipe.id,
+        result.username,
+        message: result.message,
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Oppskrift delt med $username')),
+        SnackBar(content: Text('Oppskrift delt med ${result.username}')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -1012,6 +1095,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       );
     }
   }
+
 
   void _onTapScale() async {
     if (_recipe.servings == null || _recipe.servings == 0) {

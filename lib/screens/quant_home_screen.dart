@@ -5,21 +5,91 @@ import 'create_recipe_screen.dart';
 import 'my_recipes_screen.dart';
 import '../auth/auth_gate.dart';
 import '../backend/quant_backend.dart';
+import 'inbox_screen.dart';
 
 /// Home screen for the Quant app - entry point with main actions.
-class QuantHomeScreen extends StatelessWidget {
+class QuantHomeScreen extends StatefulWidget {
   const QuantHomeScreen({super.key});
 
   static const Color _backgroundColor = Color(0xfff7f4ef);
   static const Color _textColor = Color(0xff1f140f);
 
   @override
+  State<QuantHomeScreen> createState() => _QuantHomeScreenState();
+
+}
+
+class _QuantHomeScreenState extends State<QuantHomeScreen> {
+  int _inboxCount = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadInboxCount();
+  }
+
+  Future<void> _loadInboxCount() async {
+    try {
+      final count = await quantBackend.getInboxCount();
+      if (!mounted) return;
+      setState(() => _inboxCount = count);
+    } catch (_) {}
+  }
+
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _backgroundColor,
+      backgroundColor: QuantHomeScreen._backgroundColor,
       appBar: AppBar(
         title: const Text('Quant'),
         actions: [
+          // 📬 Inbox icon
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.mail_outline),
+                onPressed: () async {
+                  final changed = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute(builder: (_) => const InboxScreen()),
+                  );
+
+                  if (!mounted) return;
+
+                  if (changed == true) {
+                    await _loadInboxCount();
+                  }
+                },
+
+              ),
+              if (_inboxCount > 0)
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 18,
+                      minHeight: 18,
+                    ),
+                    child: Text(
+                      '$_inboxCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+
+          // logout-knappen din (som før)
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
@@ -37,6 +107,32 @@ class QuantHomeScreen extends StatelessWidget {
     );
   }
 }
+
+
+//  @override
+//  Widget build(BuildContext context) {
+//    return Scaffold(
+//      backgroundColor: _backgroundColor,
+//      appBar: AppBar(
+//        title: const Text('Quant'),
+//        actions: [
+//          IconButton(
+//            icon: const Icon(Icons.logout),
+//            onPressed: () async {
+//              await tokenStore.clear();
+//              if (!context.mounted) return;
+//              Navigator.of(context).pushAndRemoveUntil(
+//                MaterialPageRoute(builder: (_) => const AuthGate()),
+//                    (_) => false,
+//              );
+//            },
+//          ),
+//        ],
+//      ),
+//      body: const _QuantHomeBody(),
+//    );
+//  }
+//}
 
 class _QuantHomeBody extends StatelessWidget {
   const _QuantHomeBody();

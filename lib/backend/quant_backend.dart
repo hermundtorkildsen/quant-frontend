@@ -22,11 +22,16 @@ abstract class QuantBackend {
 
   Future<void> deleteRecipe(String id);
 
-  Future<void> shareRecipe(String recipeId, String toUsername);
+  Future<void> shareRecipe(String recipeId, String toUsername, {String? message});
 
   /// Import a recipe from raw free text (and optional source URL).
   /// In production this would call an AI/parse endpoint on the backend.
   Future<Recipe> importRecipeFromText(String rawText, {String? sourceUrl});
+  Future<int> getInboxCount();
+  Future<List<Map<String, dynamic>>> getInbox();
+  Future<Recipe> acceptShare(String shareId);
+  Future<void> declineShare(String shareId);
+
 }
 
 /// Mock implementation that keeps everything in memory and simulates
@@ -65,9 +70,26 @@ class QuantBackendMock implements QuantBackend {
   }
 
   @override
-  Future<void> shareRecipe(String recipeId, String toUsername) async {
+  Future<void> shareRecipe(String recipeId, String toUsername, {String? message}) async {
     // Ikke implementert i mock
   }
+
+  @override
+  Future<int> getInboxCount() async => 0;
+
+  @override
+  Future<List<Map<String, dynamic>>> getInbox() async => const [];
+
+  @override
+  Future<Recipe> acceptShare(String shareId) {
+    throw UnimplementedError('acceptShare not implemented in mock');
+  }
+
+  @override
+  Future<void> declineShare(String shareId) async {
+    // noop
+  }
+
 
 }
 
