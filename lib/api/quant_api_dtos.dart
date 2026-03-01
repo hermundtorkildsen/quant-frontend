@@ -13,6 +13,10 @@ class RecipeDto {
     this.steps = const [],
     this.metadata,
     this.sharedFromUsername,
+    this.favorite = false,
+    this.pinned = false,
+    this.favoritedAt,
+    this.pinnedAt,
   });
 
   final String? id;
@@ -23,6 +27,33 @@ class RecipeDto {
   final List<RecipeStepDto> steps;
   final RecipeMetadataDto? metadata;
   final String? sharedFromUsername;
+  final bool favorite;
+  final bool pinned;
+  final DateTime? favoritedAt;
+  final DateTime? pinnedAt;
+
+  static bool _parseBool(dynamic value, {bool defaultValue = false}) {
+    if (value == null) return defaultValue;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final v = value.trim().toLowerCase();
+      if (v == 'true' || v == '1' || v == 'y' || v == 'yes') return true;
+      if (v == 'false' || v == '0' || v == 'n' || v == 'no') return false;
+    }
+    return defaultValue;
+  }
+
+  static DateTime? _parseDateTime(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    if (value is String) {
+      final v = value.trim();
+      if (v.isEmpty) return null;
+      return DateTime.tryParse(v);
+    }
+    return null;
+  }
 
   factory RecipeDto.fromJson(Map<String, dynamic> json) {
     return RecipeDto(
@@ -40,6 +71,10 @@ class RecipeDto {
           ? RecipeMetadataDto.fromJson(json['metadata'] as Map<String, dynamic>)
           : null,
       sharedFromUsername: json['sharedFromUsername'] as String?,
+      favorite: _parseBool(json['favorite']),
+      pinned: _parseBool(json['pinned']),
+      favoritedAt: _parseDateTime(json['favoritedAt']),
+      pinnedAt: _parseDateTime(json['pinnedAt']),
     );
   }
 
@@ -52,6 +87,10 @@ class RecipeDto {
       'ingredients': ingredients.map((item) => item.toJson()).toList(),
       'steps': steps.map((step) => step.toJson()).toList(),
       if (metadata != null) 'metadata': metadata!.toJson(),
+      'favorite': favorite,
+      'pinned': pinned,
+      if (favoritedAt != null) 'favoritedAt': favoritedAt!.toIso8601String(),
+      if (pinnedAt != null) 'pinnedAt': pinnedAt!.toIso8601String(),
     };
   }
 }

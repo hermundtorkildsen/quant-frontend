@@ -12,6 +12,12 @@ class Recipe {
     this.steps = const [],
     this.metadata,
     this.sharedFromUsername,
+
+    // NEW: UX fields
+    this.isFavorite = false,
+    this.isPinned = false,
+    this.favoritedAt,
+    this.pinnedAt,
   });
 
   final String id;
@@ -21,7 +27,40 @@ class Recipe {
   final List<Ingredient> ingredients;
   final List<RecipeStep> steps;
   final RecipeMetadata? metadata;
+
+  /// If this recipe was created by accepting a share, this is who shared it.
   final String? sharedFromUsername;
+
+  /// NEW: user flags stored on Recipe
+  final bool isFavorite;
+  final bool isPinned;
+
+  /// NEW: optional timestamps (if backend provides them)
+  final DateTime? favoritedAt;
+  final DateTime? pinnedAt;
+
+  static DateTime? _parseDateTime(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    if (value is String) {
+      final v = value.trim();
+      if (v.isEmpty) return null;
+      return DateTime.tryParse(v);
+    }
+    return null;
+  }
+
+  static bool _parseBool(dynamic value, {bool defaultValue = false}) {
+    if (value == null) return defaultValue;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final v = value.trim().toLowerCase();
+      if (v == 'true' || v == '1' || v == 'y' || v == 'yes') return true;
+      if (v == 'false' || v == '0' || v == 'n' || v == 'no') return false;
+    }
+    return defaultValue;
+  }
 
   factory Recipe.fromJson(Map<String, dynamic> json) {
     // Handle nullable id from backend
@@ -29,7 +68,16 @@ class Recipe {
     final id = idValue == null
         ? DateTime.now().millisecondsSinceEpoch.toString()
         : idValue as String;
-    
+
+    // Support multiple key variants (in case backend/older clients differ)
+    final favoriteRaw =
+        json['favorite'] ?? json['isFavorite'] ?? json['is_favorite'];
+    final pinnedRaw = json['pinned'] ?? json['isPinned'] ?? json['is_pinned'];
+
+    final favoritedAtRaw =
+        json['favoritedAt'] ?? json['favorited_at'] ?? json['favoriteAt'];
+    final pinnedAtRaw = json['pinnedAt'] ?? json['pinned_at'] ?? json['pinAt'];
+
     return Recipe(
       id: id,
       title: json['title'] as String,
@@ -45,6 +93,12 @@ class Recipe {
           ? RecipeMetadata.fromJson(json['metadata'] as Map<String, dynamic>)
           : null,
       sharedFromUsername: json['sharedFromUsername'] as String?,
+
+      // NEW
+      isFavorite: _parseBool(favoriteRaw, defaultValue: false),
+      isPinned: _parseBool(pinnedRaw, defaultValue: false),
+      favoritedAt: _parseDateTime(favoritedAtRaw),
+      pinnedAt: _parseDateTime(pinnedAtRaw),
     );
   }
 
@@ -57,6 +111,12 @@ class Recipe {
       'ingredients': ingredients.map((item) => item.toJson()).toList(),
       'steps': steps.map((step) => step.toJson()).toList(),
       'metadata': metadata?.toJson(),
+
+      // NEW: safe to include; backend can ignore if not used
+      'favorite': isFavorite,
+      'pinned': isPinned,
+      if (favoritedAt != null) 'favoritedAt': favoritedAt!.toIso8601String(),
+      if (pinnedAt != null) 'pinnedAt': pinnedAt!.toIso8601String(),
     };
   }
 }
@@ -156,8 +216,10 @@ class RecipeMetadata {
           .map((item) => item as String)
           .toList(),
       imageUrl: json['image_url'] as String? ?? json['imageUrl'] as String?,
-      calculatorId: json['calculator_id'] as String? ?? json['calculatorId'] as String?,
-      importMethod: json['import_method'] as String? ?? json['importMethod'] as String?,
+      calculatorId:
+      json['calculator_id'] as String? ?? json['calculatorId'] as String?,
+      importMethod:
+      json['import_method'] as String? ?? json['importMethod'] as String?,
     );
   }
 
@@ -168,7 +230,7 @@ class RecipeMetadata {
       'author': author ?? '',
       'language': language,
       'categories': categories,
-      'image_url': imageUrl,
+      'image_url': imageUrl ?? '',
       'calculator_id': calculatorId,
       'import_method': importMethod,
     };

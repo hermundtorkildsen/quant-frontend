@@ -154,6 +154,8 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
   RecipeSortMode _sortMode = RecipeSortMode.titleAsc;
   _SharedFilter _sharedFilter = _SharedFilter.all;
   Timer? _searchDebounce;
+  bool _isAdmin = false;
+  List<Recipe>? _cachedRecipes;
 
   @override
   void initState() {
@@ -161,10 +163,21 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
     _searchController = TextEditingController(text: _searchQuery);
     // Fetch recipes once; filtering is done client-side without reloading.
     _recipesFuture = quantBackend.getAllRecipes();
+    // Determine if current user is admin (read-only in app).
+    quantBackend.getMe().then((me) {
+      final username = (me['username'] ?? '').toString().toLowerCase().trim();
+      if (!mounted) return;
+      setState(() {
+        _isAdmin = username == 'admin';
+      });
+    }).catchError((_) {
+      // ignore – default false
+    });
   }
 
   void _reloadRecipes() {
     setState(() {
+      _cachedRecipes = null;
       _recipesFuture = quantBackend.getAllRecipes();
     });
   }
@@ -202,6 +215,27 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
             },
             itemBuilder: (context) => const [
               PopupMenuItem(
+                value: RecipeSortMode.pinnedFirst,
+                child: Row(
+                  children: const [
+                    Icon(Icons.push_pin, size: 18, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Festet først'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: RecipeSortMode.favoriteFirst,
+                child: Row(
+                  children: const [
+                    Icon(Icons.star, size: 18, color: Colors.amber),
+                    SizedBox(width: 8),
+                    Text('Favoritt først'),
+                  ],
+                ),
+              ),
+              PopupMenuDivider(),
+              PopupMenuItem(
                 value: RecipeSortMode.titleAsc,
                 child: Text('Tittel A–Å'),
               ),
@@ -230,7 +264,8 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
             return const SizedBox.shrink();
           }
 
-          final recipes = snapshot.data ?? const [];
+          _cachedRecipes ??= (snapshot.data ?? const []);
+          final recipes = _cachedRecipes ?? const <Recipe>[];
 
           if (recipes.isEmpty) {
             return _EmptyState();
@@ -308,11 +343,43 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
           }).toList();
 
           // Apply sorting.
+// Apply sorting.
+// Apply sorting.
           filtered.sort((a, b) {
-            final at = a.title.toLowerCase();
-            final bt = b.title.toLowerCase();
-            final cmp = at.compareTo(bt);
-            return _sortMode == RecipeSortMode.titleAsc ? cmp : -cmp;
+            int cmpBool(bool aVal, bool bVal) {
+              if (aVal == bVal) return 0;
+              return aVal ? -1 : 1;
+            }
+
+            int cmpTitle(Recipe ra, Recipe rb, {required bool asc}) {
+              final at = ra.title.toLowerCase();
+              final bt = rb.title.toLowerCase();
+              final cmp = at.compareTo(bt);
+              return asc ? cmp : -cmp;
+            }
+
+            // 🔥 Sticky pinned — ALLTID først
+            final pinnedCompare = cmpBool(a.isPinned, b.isPinned);
+            if (pinnedCompare != 0) return pinnedCompare;
+
+            // Resten styres av valgt sortering
+            switch (_sortMode) {
+              case RecipeSortMode.favoriteFirst:
+                final fav = cmpBool(a.isFavorite, b.isFavorite);
+                if (fav != 0) return fav;
+                return cmpTitle(a, b, asc: true);
+
+              case RecipeSortMode.titleAsc:
+                return cmpTitle(a, b, asc: true);
+
+              case RecipeSortMode.titleDesc:
+                return cmpTitle(a, b, asc: false);
+
+              case RecipeSortMode.pinnedFirst:
+              // pinnedFirst gir egentlig ikke mening lenger,
+              // men vi lar den bare falle tilbake til tittel
+                return cmpTitle(a, b, asc: true);
+            }
           });
 
           final hasActiveFilters =
@@ -341,26 +408,29 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              ChoiceChip(
-                                label: const Text('Alle'),
-                                selected: _sharedFilter == _SharedFilter.all,
-                                onSelected: (_) => setState(() => _sharedFilter = _SharedFilter.all),
+                          child: PopupMenuButton<_SharedFilter>(
+                            tooltip: 'Vis',
+                            onSelected: (f) => setState(() => _sharedFilter = f),
+                            itemBuilder: (context) => const [
+                              PopupMenuItem(
+                                value: _SharedFilter.all,
+                                child: Text('Vis: Alle'),
                               ),
-                              ChoiceChip(
-                                label: const Text('Mine'),
-                                selected: _sharedFilter == _SharedFilter.mine,
-                                onSelected: (_) => setState(() => _sharedFilter = _SharedFilter.mine),
+                              PopupMenuItem(
+                                value: _SharedFilter.mine,
+                                child: Text('Vis: Mine'),
                               ),
-                              ChoiceChip(
-                                label: const Text('Delt'), // <-- endre
-                                selected: _sharedFilter == _SharedFilter.sharedWithMe,
-                                onSelected: (_) => setState(() => _sharedFilter = _SharedFilter.sharedWithMe),
+                              PopupMenuItem(
+                                value: _SharedFilter.sharedWithMe,
+                                child: Text('Vis: Delt med meg'),
                               ),
                             ],
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Chip(
+                                label: Text('Vis: ${_sharedLabel(_sharedFilter)}  ▾'),
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -385,8 +455,19 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
                               child: Text('Kilde: Kalkulator'),
                             ),
                           ],
-                          child: Chip(
-                            label: Text('Kilde: ${_originLabel(_originFilter)}  ▾'),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Chip(
+                                label: Text('Kilde: ${_originLabel(_originFilter)}  ▾'),
+                              ),
+                              const SizedBox(width: 8),
+                              ActionChip(
+                                avatar: const Icon(Icons.filter_list, size: 18),
+                                label: const Text('Filter'),
+                                onPressed: () => _showTagFilterSheet(allTags),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -397,15 +478,6 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
                       onChanged: _onSearchChanged,
                     ),
                     const SizedBox(height: 8),
-                    _TagFilterRow(
-                      tags: allTags,
-                      selectedTag: _selectedTag,
-                      onTagSelected: (tag) {
-                        setState(() {
-                          _selectedTag = tag == _selectedTag ? null : tag;
-                        });
-                      },
-                    ),
                     if (hasActiveFilters) ...[
                       const SizedBox(height: 8),
                       TextButton(
@@ -438,7 +510,14 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
               final recipe = filtered[index - 1];
               return _RecipeListTile(
                 recipe: recipe,
-                onRecipeDeleted: _reloadRecipes,
+                canMutate: !_isAdmin,
+                onRecipeChanged: (updated) {
+                  setState(() {
+                    _cachedRecipes = (_cachedRecipes ?? recipes).map((r) {
+                      return r.id == updated.id ? updated : r;
+                    }).toList();
+                  });
+                },
               );
             },
           );
@@ -458,6 +537,139 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
         return 'Kalkulator';
     }
   }
+
+  String _sharedLabel(_SharedFilter f) {
+    switch (f) {
+      case _SharedFilter.all:
+        return 'Alle';
+      case _SharedFilter.mine:
+        return 'Mine';
+      case _SharedFilter.sharedWithMe:
+        return 'Delt med meg';
+    }
+  }
+
+  void _showTagFilterSheet(List<String> allTags) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Filtrer på tag',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: allTags.map((tag) {
+                    final selected = _selectedTag == tag;
+                    return ChoiceChip(
+                      label: Text(tag),
+                      selected: selected,
+                      onSelected: (_) {
+                        setState(() {
+                          _selectedTag = selected ? null : tag;
+                        });
+                        Navigator.pop(context);
+                      },
+                    );
+                  }).toList(),
+                ),
+                if (_selectedTag != null) ...[
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: () {
+                      setState(() => _selectedTag = null);
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Fjern tag-filter'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _toggleFavorite(Recipe recipe) async {
+    if (_isAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Admin-bruker kan ikke endre oppskrifter.')),
+      );
+      return;
+    }
+
+    final next = !recipe.isFavorite;
+
+    final updated = Recipe(
+      id: recipe.id,
+      title: recipe.title,
+      description: recipe.description,
+      servings: recipe.servings,
+      ingredients: recipe.ingredients,
+      steps: recipe.steps,
+      metadata: recipe.metadata,
+      sharedFromUsername: recipe.sharedFromUsername,
+      isFavorite: next,
+      isPinned: recipe.isPinned,
+      favoritedAt: next ? DateTime.now() : null,
+      pinnedAt: recipe.pinnedAt,
+    );
+
+    try {
+      await quantBackend.saveRecipe(updated);
+      _reloadRecipes();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Kunne ikke lagre favoritt: $e')),
+      );
+    }
+  }
+
+  Future<void> _togglePinned(Recipe recipe) async {
+    if (_isAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Admin-bruker kan ikke endre oppskrifter.')),
+      );
+      return;
+    }
+
+    final next = !recipe.isPinned;
+
+    final updated = Recipe(
+      id: recipe.id,
+      title: recipe.title,
+      description: recipe.description,
+      servings: recipe.servings,
+      ingredients: recipe.ingredients,
+      steps: recipe.steps,
+      metadata: recipe.metadata,
+      sharedFromUsername: recipe.sharedFromUsername,
+      isFavorite: recipe.isFavorite,
+      isPinned: next,
+      favoritedAt: recipe.favoritedAt,
+      pinnedAt: next ? DateTime.now() : null,
+    );
+
+    try {
+      await quantBackend.saveRecipe(updated);
+      _reloadRecipes();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Kunne ikke lagre festet: $e')),
+      );
+    }
+  }
+
 }
 
 class _RecipeSearchBar extends StatelessWidget {
@@ -488,6 +700,8 @@ class _RecipeSearchBar extends StatelessWidget {
 }
 
 enum RecipeSortMode {
+  pinnedFirst,
+  favoriteFirst,
   titleAsc,
   titleDesc,
 }
@@ -579,6 +793,15 @@ class _TagFilterRow extends StatelessWidget {
   }
 }
 
+String _formatTags(List<String> tags) {
+  final cleaned = tags
+      .map((t) => t.trim())
+      .where((t) => t.isNotEmpty)
+      .toList();
+  if (cleaned.isEmpty) return '';
+  return cleaned.join(' • ');
+}
+
 Widget _buildRecipeLeadingImage(BuildContext context, String? imageUrl) {
   final hasImage = imageUrl != null && imageUrl.trim().isNotEmpty;
   final borderRadius = BorderRadius.circular(12);
@@ -632,118 +855,262 @@ Widget _buildRecipeLeadingImage(BuildContext context, String? imageUrl) {
   );
 }
 
-class _RecipeListTile extends StatelessWidget {
+class _RecipeListTile extends StatefulWidget {
   const _RecipeListTile({
     required this.recipe,
-    required this.onRecipeDeleted,
+    required this.onRecipeChanged,
+    required this.canMutate,
   });
 
   final Recipe recipe;
-  final VoidCallback onRecipeDeleted;
+  final ValueChanged<Recipe> onRecipeChanged; // oppdaterer lista lokalt
+  final bool canMutate;
+
+  @override
+  State<_RecipeListTile> createState() => _RecipeListTileState();
+}
+
+class _RecipeListTileState extends State<_RecipeListTile> {
+  late bool _isFavorite;
+  late bool _isPinned;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isFavorite = widget.recipe.isFavorite;
+    _isPinned = widget.recipe.isPinned;
+  }
+
+  @override
+  void didUpdateWidget(covariant _RecipeListTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.recipe.id != widget.recipe.id) {
+      _isFavorite = widget.recipe.isFavorite;
+      _isPinned = widget.recipe.isPinned;
+    }
+  }
+
+  Future<void> _save({required bool favorite, required bool pinned}) async {
+    final now = DateTime.now();
+
+    final updated = Recipe(
+      id: widget.recipe.id,
+      title: widget.recipe.title,
+      description: widget.recipe.description,
+      servings: widget.recipe.servings,
+      ingredients: widget.recipe.ingredients,
+      steps: widget.recipe.steps,
+      metadata: widget.recipe.metadata,
+      sharedFromUsername: widget.recipe.sharedFromUsername,
+      isFavorite: favorite,
+      isPinned: pinned,
+      favoritedAt: favorite ? (widget.recipe.favoritedAt ?? now) : null,
+      pinnedAt: pinned ? (widget.recipe.pinnedAt ?? now) : null,
+    );
+
+    // Optimistic UI: oppdater parent sin liste uten full reload
+    widget.onRecipeChanged(updated);
+
+    try {
+      await quantBackend.saveRecipe(updated);
+    } catch (e) {
+      // Revert visuelt ved å oppdatere parent tilbake til original
+      widget.onRecipeChanged(widget.recipe);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Kunne ikke lagre: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    if (!widget.canMutate) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Admin-bruker kan ikke endre oppskrifter.')),
+      );
+      return;
+    }
+    if (_isSaving) return;
+
+    final next = !_isFavorite;
+    setState(() {
+      _isFavorite = next;
+      _isSaving = true;
+    });
+
+    await _save(favorite: next, pinned: _isPinned);
+
+    if (mounted) {
+      setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _togglePinned() async {
+    if (!widget.canMutate) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Admin-bruker kan ikke endre oppskrifter.')),
+      );
+      return;
+    }
+    if (_isSaving) return;
+
+    final next = !_isPinned;
+    setState(() {
+      _isPinned = next;
+      _isSaving = true;
+    });
+
+    await _save(favorite: _isFavorite, pinned: next);
+
+    if (mounted) {
+      setState(() => _isSaving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final recipe = widget.recipe;
     final textTheme = Theme.of(context).textTheme;
     final servingsText =
-        recipe.servings != null ? '${recipe.servings} porsjoner' : null;
+    recipe.servings != null ? '${recipe.servings} porsjoner' : null;
     final tags = recipe.metadata?.categories ?? const <String>[];
     final imageUrl = recipe.metadata?.imageUrl;
 
     return Card(
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        leading: _buildRecipeLeadingImage(context, imageUrl),
-        title: Text(
-          recipe.title,
-          style: textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (recipe.description != null &&
-                recipe.description!.trim().isNotEmpty)
-              Text(
-                recipe.description!,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            if (servingsText != null) ...[
-              const SizedBox(height: 4),
-              Text(servingsText),
-            ],
-            if (recipe.sharedFromUsername != null &&
-                recipe.sharedFromUsername!.trim().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  'Delt av ${recipe.sharedFromUsername}',
-                  style: textTheme.bodySmall?.copyWith(
-                    color: textTheme.bodySmall?.color?.withOpacity(0.7),
-                    fontStyle: FontStyle.italic,
+      child: Stack(
+        children: [
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            leading: _buildRecipeLeadingImage(context, imageUrl),
+            title: Text(
+              recipe.title,
+              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (recipe.description != null && recipe.description!.trim().isNotEmpty)
+                  Text(
+                    recipe.description!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ),
-            Builder(
-              builder: (context) {
-                final originLabel = _getOriginLabel(recipe);
-                if (originLabel != null) {
-                  return Padding(
+                if (servingsText != null) ...[
+                  const SizedBox(height: 4),
+                  Text(servingsText),
+                ],
+                if (recipe.sharedFromUsername != null &&
+                    recipe.sharedFromUsername!.trim().isNotEmpty)
+                  Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
-                      originLabel,
+                      'Delt av ${recipe.sharedFromUsername}',
                       style: textTheme.bodySmall?.copyWith(
                         color: textTheme.bodySmall?.color?.withOpacity(0.7),
                         fontStyle: FontStyle.italic,
                       ),
                     ),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-            if (tags.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                _formatTags(tags),
-                style: textTheme.bodySmall?.copyWith(
-                  color: textTheme.bodySmall?.color?.withOpacity(0.8),
+                  ),
+                Builder(
+                  builder: (context) {
+                    final originLabel = _getOriginLabel(recipe);
+                    if (originLabel != null) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          originLabel,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: textTheme.bodySmall?.color?.withOpacity(0.7),
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
                 ),
-              ),
-            ],
-          ],
-        ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () async {
-          final deleted = await Navigator.of(context).push<bool>(
-            MaterialPageRoute(
-              builder: (_) => RecipeDetailScreen(recipe: recipe),
+                if (tags.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatTags(tags),
+                    style: textTheme.bodySmall?.copyWith(
+                      color: textTheme.bodySmall?.color?.withOpacity(0.8),
+                    ),
+                  ),
+                ],
+              ],
             ),
-          );
-          if (deleted == true) {
-            onRecipeDeleted();
-          }
-        },
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              final deleted = await Navigator.of(context).push<bool>(
+                MaterialPageRoute(
+                  builder: (_) => RecipeDetailScreen(recipe: recipe),
+                ),
+              );
+              if (deleted == true && mounted) {
+                // hvis du fortsatt vil full reload ved delete
+              }
+            },
+          ),
+
+          // Badges: nederst til høyre (pent og ikke i veien)
+          Positioned(
+            bottom: 8,
+            right: 8,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: widget.canMutate ? _togglePinned : null,
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(
+                      Icons.push_pin,
+                      size: 18,
+                      color: _isPinned
+                          ? Colors.red
+                          : Theme.of(context).iconTheme.color?.withOpacity(0.30),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: widget.canMutate ? _toggleFavorite : null,
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(
+                      Icons.star,
+                      size: 18,
+                      color: _isFavorite
+                          ? Colors.amber
+                          : Theme.of(context).iconTheme.color?.withOpacity(0.30),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: _isSaving
+                      ? const CircularProgressIndicator(strokeWidth: 2)
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
-
-  String _formatTags(List<String> tags) {
-    if (tags.isEmpty) return '';
-    const maxToShow = 3;
-    final visible = tags.take(maxToShow).toList();
-    final remaining = tags.length - visible.length;
-    final base = visible.join(' · ');
-    if (remaining > 0) {
-      return '$base · +$remaining';
-    }
-    return base;
-  }
 }
+
+
 
 enum _RecipeMenuAction { shareInApp, shareAsText, duplicate, delete }
 

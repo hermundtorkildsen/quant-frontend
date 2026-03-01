@@ -162,6 +162,12 @@ class QuantBackendHttp implements QuantBackend {
           : null,
 
       sharedFromUsername: dto.sharedFromUsername,
+
+      // NEW: map flags + timestamps from backend
+      isFavorite: dto.favorite,
+      isPinned: dto.pinned,
+      favoritedAt: dto.favoritedAt,
+      pinnedAt: dto.pinnedAt,
     );
   }
 
@@ -174,31 +180,37 @@ class QuantBackendHttp implements QuantBackend {
       servings: recipe.servings,
       ingredients: recipe.ingredients
           .map((ing) => IngredientDto(
-                amount: ing.amount,
-                unit: ing.unit,
-                item: ing.item,
-                notes: ing.notes,
-                section: ing.section,
-              ))
+        amount: ing.amount,
+        unit: ing.unit,
+        item: ing.item,
+        notes: ing.notes,
+        section: ing.section,
+      ))
           .toList(),
       steps: recipe.steps
           .map((step) => RecipeStepDto(
-                step: step.step,
-                instruction: step.instruction,
-                notes: step.notes,
-              ))
+        step: step.step,
+        instruction: step.instruction,
+        notes: step.notes,
+      ))
           .toList(),
       metadata: recipe.metadata != null
           ? RecipeMetadataDto(
-              sourceUrl: recipe.metadata!.sourceUrl,
-              author: recipe.metadata!.author,
-              language: recipe.metadata!.language,
-              categories: recipe.metadata!.categories,
-              imageUrl: recipe.metadata!.imageUrl,
-              calculatorId: recipe.metadata!.calculatorId,
-              importMethod: recipe.metadata!.importMethod,
-            )
+        sourceUrl: recipe.metadata!.sourceUrl,
+        author: recipe.metadata!.author,
+        language: recipe.metadata!.language,
+        categories: recipe.metadata!.categories,
+        imageUrl: recipe.metadata!.imageUrl,
+        calculatorId: recipe.metadata!.calculatorId,
+        importMethod: recipe.metadata!.importMethod,
+      )
           : null,
+
+      // ✅ send flags + timestamps to backend
+      favorite: recipe.isFavorite,
+      pinned: recipe.isPinned,
+      favoritedAt: recipe.favoritedAt,
+      pinnedAt: recipe.pinnedAt,
     );
   }
 }
