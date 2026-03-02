@@ -32,8 +32,7 @@ abstract class QuantBackend {
   Future<Recipe> acceptShare(String shareId);
   Future<void> declineShare(String shareId);
   Future<Map<String, dynamic>> getMe();
-
-
+  Future<Recipe> markViewed(String recipeId);
 
 }
 
@@ -98,6 +97,36 @@ class QuantBackendMock implements QuantBackend {
     return {
       'username': 'mockuser',
     };
+  }
+
+  @override
+  Future<Recipe> markViewed(String recipeId) async {
+    final recipe = await _repository.getRecipeById(recipeId);
+    if (recipe == null) {
+      throw Exception('Recipe not found: $recipeId');
+    }
+
+    final updated = Recipe(
+      id: recipe.id,
+      title: recipe.title,
+      description: recipe.description,
+      servings: recipe.servings,
+      ingredients: recipe.ingredients,
+      steps: recipe.steps,
+      metadata: recipe.metadata,
+      sharedFromUsername: recipe.sharedFromUsername,
+      isFavorite: recipe.isFavorite,
+      isPinned: recipe.isPinned,
+      favoritedAt: recipe.favoritedAt,
+      pinnedAt: recipe.pinnedAt,
+      createdAt: recipe.createdAt,
+      updatedAt: recipe.updatedAt,
+      lastViewedAt: DateTime.now(),
+      viewCount: recipe.viewCount + 1,
+    );
+
+    await _repository.saveRecipe(updated);
+    return updated;
   }
 
 

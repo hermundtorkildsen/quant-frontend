@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../backend/quant_backend.dart';
 import '../models/recipe.dart';
@@ -213,19 +214,31 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
                 _sortMode = mode;
               });
             },
-            itemBuilder: (context) => const [
-              PopupMenuItem(
-                value: RecipeSortMode.pinnedFirst,
-                child: Row(
-                  children: const [
-                    Icon(Icons.push_pin, size: 18, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text('Festet først'),
-                  ],
-                ),
+            itemBuilder: (context) => [
+              CheckedPopupMenuItem<RecipeSortMode>(
+                value: RecipeSortMode.recentlyUsed,
+                checked: _sortMode == RecipeSortMode.recentlyUsed,
+                child: const Text('Sist brukt'),
               ),
-              PopupMenuItem(
+              CheckedPopupMenuItem<RecipeSortMode>(
+                value: RecipeSortMode.mostUsed,
+                checked: _sortMode == RecipeSortMode.mostUsed,
+                child: const Text('Mest brukt'),
+              ),
+              CheckedPopupMenuItem<RecipeSortMode>(
+                value: RecipeSortMode.recentlyAdded,
+                checked: _sortMode == RecipeSortMode.recentlyAdded,
+                child: const Text('Nylig lagt til'),
+              ),
+              CheckedPopupMenuItem<RecipeSortMode>(
+                value: RecipeSortMode.recentlyEdited,
+                checked: _sortMode == RecipeSortMode.recentlyEdited,
+                child: const Text('Sist endret'),
+              ),
+              const PopupMenuDivider(),
+              CheckedPopupMenuItem<RecipeSortMode>(
                 value: RecipeSortMode.favoriteFirst,
+                checked: _sortMode == RecipeSortMode.favoriteFirst,
                 child: Row(
                   children: const [
                     Icon(Icons.star, size: 18, color: Colors.amber),
@@ -234,14 +247,16 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
                   ],
                 ),
               ),
-              PopupMenuDivider(),
-              PopupMenuItem(
+              const PopupMenuDivider(),
+              CheckedPopupMenuItem<RecipeSortMode>(
                 value: RecipeSortMode.titleAsc,
-                child: Text('Tittel A–Å'),
+                checked: _sortMode == RecipeSortMode.titleAsc,
+                child: const Text('Tittel A–Å'),
               ),
-              PopupMenuItem(
+              CheckedPopupMenuItem<RecipeSortMode>(
                 value: RecipeSortMode.titleDesc,
-                child: Text('Tittel Å–A'),
+                checked: _sortMode == RecipeSortMode.titleDesc,
+                child: const Text('Tittel Å–A'),
               ),
             ],
           ),
@@ -364,21 +379,62 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
 
             // Resten styres av valgt sortering
             switch (_sortMode) {
-              case RecipeSortMode.favoriteFirst:
+              case RecipeSortMode.recentlyUsed: {
+                // NULL = gammel → nederst (nulls last), desc
+                final aT = a.lastViewedAt;
+                final bT = b.lastViewedAt;
+
+                if (aT == null && bT == null) return cmpTitle(a, b, asc: true);
+                if (aT == null) return 1;
+                if (bT == null) return -1;
+
+                return bT.compareTo(aT);
+              }
+
+              case RecipeSortMode.mostUsed: {
+                // NULL viewCount behandles som 0
+                final av = a.viewCount ?? 0;
+                final bv = b.viewCount ?? 0;
+
+                if (av != bv) return bv.compareTo(av);
+                return cmpTitle(a, b, asc: true);
+              }
+
+              case RecipeSortMode.recentlyAdded: {
+                // NULL = gammel → nederst (nulls last), desc
+                final aT = a.createdAt;
+                final bT = b.createdAt;
+
+                if (aT == null && bT == null) return cmpTitle(a, b, asc: true);
+                if (aT == null) return 1;
+                if (bT == null) return -1;
+
+                return bT.compareTo(aT);
+              }
+
+              case RecipeSortMode.recentlyEdited: {
+                // NULL = gammel → nederst (nulls last), desc
+                final aT = a.updatedAt;
+                final bT = b.updatedAt;
+
+                if (aT == null && bT == null) return cmpTitle(a, b, asc: true);
+                if (aT == null) return 1;
+                if (bT == null) return -1;
+
+                return bT.compareTo(aT);
+              }
+
+              case RecipeSortMode.favoriteFirst: {
                 final fav = cmpBool(a.isFavorite, b.isFavorite);
                 if (fav != 0) return fav;
                 return cmpTitle(a, b, asc: true);
+              }
 
               case RecipeSortMode.titleAsc:
                 return cmpTitle(a, b, asc: true);
 
               case RecipeSortMode.titleDesc:
                 return cmpTitle(a, b, asc: false);
-
-              case RecipeSortMode.pinnedFirst:
-              // pinnedFirst gir egentlig ikke mening lenger,
-              // men vi lar den bare falle tilbake til tittel
-                return cmpTitle(a, b, asc: true);
             }
           });
 
@@ -404,79 +460,95 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 8),
+                    //Row(
+                    //  crossAxisAlignment: CrossAxisAlignment.start,
+                    //  children: [
+                    //    Expanded(
+                    //      child: PopupMenuButton<_SharedFilter>(
+                    //        tooltip: 'Vis',
+                    //        onSelected: (f) => setState(() => _sharedFilter = f),
+                    //        itemBuilder: (context) => const [
+                    //          PopupMenuItem(
+                    //            value: _SharedFilter.all,
+                    //            child: Text('Vis: Alle'),
+                    //          ),
+                    //          PopupMenuItem(
+                    //            value: _SharedFilter.mine,
+                    //            child: Text('Vis: Mine'),
+                    //          ),
+                    //          PopupMenuItem(
+                    //            value: _SharedFilter.sharedWithMe,
+                    //            child: Text('Vis: Delt med meg'),
+                    //          ),
+                    //        ],
+                    //        child: Align(
+                    //          alignment: Alignment.centerLeft,
+                    //          child: Chip(
+                    //            label: Text('Vis: ${_sharedLabel(_sharedFilter)}  ▾'),
+                    //          ),
+                    //        ),
+                    //      ),
+                    //    ),
+                    //    const SizedBox(width: 8),
+                    //    PopupMenuButton<RecipeOriginFilter>(
+                    //      tooltip: 'Kilde',
+                    //      onSelected: (filter) => setState(() => _originFilter = filter),
+                    //      itemBuilder: (context) => const [
+                    //        PopupMenuItem(
+                    //          value: RecipeOriginFilter.all,
+                    //          child: Text('Kilde: Alle'),
+                    //        ),
+                    //        PopupMenuItem(
+                    //          value: RecipeOriginFilter.manual,
+                    //          child: Text('Kilde: Manuell'),
+                    //        ),
+                    //        PopupMenuItem(
+                    //          value: RecipeOriginFilter.imported,
+                    //          child: Text('Kilde: Import'),
+                    //        ),
+                    //        PopupMenuItem(
+                    //          value: RecipeOriginFilter.pizzaCalculator,
+                    //          child: Text('Kilde: Kalkulator'),
+                    //        ),
+                    //      ],
+                    //      child: Row(
+                    //        mainAxisSize: MainAxisSize.min,
+                    //        children: [
+                    //          Chip(
+                    //            label: Text('Kilde: ${_originLabel(_originFilter)}  ▾'),
+                    //          ),
+                    //          const SizedBox(width: 8),
+                    //          ActionChip(
+                    //            avatar: const Icon(Icons.filter_list, size: 18),
+                    //            label: const Text('Filter'),
+                    //            onPressed: () => _showTagFilterSheet(allTags),
+                    //          ),
+                    //        ],
+                    //      ),
+                    //    ),
+                    //  ],
+                    //),
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: PopupMenuButton<_SharedFilter>(
-                            tooltip: 'Vis',
-                            onSelected: (f) => setState(() => _sharedFilter = f),
-                            itemBuilder: (context) => const [
-                              PopupMenuItem(
-                                value: _SharedFilter.all,
-                                child: Text('Vis: Alle'),
-                              ),
-                              PopupMenuItem(
-                                value: _SharedFilter.mine,
-                                child: Text('Vis: Mine'),
-                              ),
-                              PopupMenuItem(
-                                value: _SharedFilter.sharedWithMe,
-                                child: Text('Vis: Delt med meg'),
-                              ),
-                            ],
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Chip(
-                                label: Text('Vis: ${_sharedLabel(_sharedFilter)}  ▾'),
-                              ),
-                            ),
+                          child: _RecipeSearchBar(
+                            controller: _searchController,
+                            onChanged: _onSearchChanged,
                           ),
                         ),
                         const SizedBox(width: 8),
-                        PopupMenuButton<RecipeOriginFilter>(
-                          tooltip: 'Kilde',
-                          onSelected: (filter) => setState(() => _originFilter = filter),
-                          itemBuilder: (context) => const [
-                            PopupMenuItem(
-                              value: RecipeOriginFilter.all,
-                              child: Text('Kilde: Alle'),
-                            ),
-                            PopupMenuItem(
-                              value: RecipeOriginFilter.manual,
-                              child: Text('Kilde: Manuell'),
-                            ),
-                            PopupMenuItem(
-                              value: RecipeOriginFilter.imported,
-                              child: Text('Kilde: Import'),
-                            ),
-                            PopupMenuItem(
-                              value: RecipeOriginFilter.pizzaCalculator,
-                              child: Text('Kilde: Kalkulator'),
-                            ),
-                          ],
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Chip(
-                                label: Text('Kilde: ${_originLabel(_originFilter)}  ▾'),
-                              ),
-                              const SizedBox(width: 8),
-                              ActionChip(
-                                avatar: const Icon(Icons.filter_list, size: 18),
-                                label: const Text('Filter'),
-                                onPressed: () => _showTagFilterSheet(allTags),
-                              ),
-                            ],
-                          ),
+                        IconButton(
+                          tooltip: 'Filtre',
+                          icon: const Icon(Icons.tune),
+                          onPressed: () => _showFiltersSheet(allTags),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    _RecipeSearchBar(
-                      controller: _searchController,
-                      onChanged: _onSearchChanged,
-                    ),
+                    //const SizedBox(height: 8),
+                    //_RecipeSearchBar(
+                    //  controller: _searchController,
+                    //  onChanged: _onSearchChanged,
+                    //),
                     const SizedBox(height: 8),
                     if (hasActiveFilters) ...[
                       const SizedBox(height: 8),
@@ -536,6 +608,196 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
       case RecipeOriginFilter.pizzaCalculator:
         return 'Kalkulator';
     }
+  }
+
+  void _showFiltersSheet(List<String> allTags) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Filtre',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // ---- VIS (Alle / Mine / Delt) ----
+                  Text(
+                    'Vis',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ChoiceChip(
+                        label: const Text('Alle'),
+                        selected: _sharedFilter == _SharedFilter.all,
+                        onSelected: (_) {
+                          setState(() => _sharedFilter = _SharedFilter.all);
+                          Navigator.pop(context);
+                        },
+                      ),
+                      ChoiceChip(
+                        label: const Text('Mine'),
+                        selected: _sharedFilter == _SharedFilter.mine,
+                        onSelected: (_) {
+                          setState(() => _sharedFilter = _SharedFilter.mine);
+                          Navigator.pop(context);
+                        },
+                      ),
+                      ChoiceChip(
+                        label: const Text('Delt med meg'),
+                        selected: _sharedFilter == _SharedFilter.sharedWithMe,
+                        onSelected: (_) {
+                          setState(() => _sharedFilter = _SharedFilter.sharedWithMe);
+                          Navigator.pop(context);
+                        },
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ---- KILDE (Alle/Manuell/Import/Kalkulator) ----
+                  Text(
+                    'Kilde',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ChoiceChip(
+                        label: const Text('Alle'),
+                        selected: _originFilter == RecipeOriginFilter.all,
+                        onSelected: (_) {
+                          setState(() => _originFilter = RecipeOriginFilter.all);
+                          Navigator.pop(context);
+                        },
+                      ),
+                      ChoiceChip(
+                        label: const Text('Manuell'),
+                        selected: _originFilter == RecipeOriginFilter.manual,
+                        onSelected: (_) {
+                          setState(() => _originFilter = RecipeOriginFilter.manual);
+                          Navigator.pop(context);
+                        },
+                      ),
+                      ChoiceChip(
+                        label: const Text('Import'),
+                        selected: _originFilter == RecipeOriginFilter.imported,
+                        onSelected: (_) {
+                          setState(() => _originFilter = RecipeOriginFilter.imported);
+                          Navigator.pop(context);
+                        },
+                      ),
+                      ChoiceChip(
+                        label: const Text('Kalkulator'),
+                        selected: _originFilter == RecipeOriginFilter.pizzaCalculator,
+                        onSelected: (_) {
+                          setState(() => _originFilter = RecipeOriginFilter.pizzaCalculator);
+                          Navigator.pop(context);
+                        },
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ---- TAG (valgfri, single-select) ----
+                  Text(
+                    'Tag',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  if (allTags.isEmpty)
+                    Text(
+                      'Ingen tagger funnet.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    )
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ChoiceChip(
+                          label: const Text('Alle'),
+                          selected: _selectedTag == null,
+                          onSelected: (_) {
+                            setState(() => _selectedTag = null);
+                            Navigator.pop(context);
+                          },
+                        ),
+                        ...allTags.map((tag) {
+                          final selected = _selectedTag == tag;
+                          return ChoiceChip(
+                            label: Text(tag),
+                            selected: selected,
+                            onSelected: (_) {
+                              setState(() {
+                                _selectedTag = selected ? null : tag;
+                              });
+                              Navigator.pop(context); // <- viktig
+                            },
+                          );
+                        }),
+                      ],
+                    ),
+
+                  const SizedBox(height: 20),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            setState(() {
+                              _searchQuery = '';
+                              _selectedTag = null;
+                              _originFilter = RecipeOriginFilter.all;
+                              _sharedFilter = _SharedFilter.all;
+                              _searchController.clear();
+                            });
+                            Navigator.pop(context);
+                          },
+                          child: const Text('Nullstill'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Ferdig'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   String _sharedLabel(_SharedFilter f) {
@@ -700,10 +962,13 @@ class _RecipeSearchBar extends StatelessWidget {
 }
 
 enum RecipeSortMode {
-  pinnedFirst,
-  favoriteFirst,
-  titleAsc,
-  titleDesc,
+  recentlyUsed,   // lastViewedAt desc
+  mostUsed,       // viewCount desc
+  recentlyAdded,  // createdAt desc
+  recentlyEdited, // updatedAt desc
+  favoriteFirst,  // favorite desc
+  titleAsc,       // A–Å
+  titleDesc,      // Å–A
 }
 
 enum RecipeOriginFilter {
@@ -757,41 +1022,41 @@ enum RecipeOriginFilter {
 //  }
 //}
 
-class _TagFilterRow extends StatelessWidget {
-  const _TagFilterRow({
-    required this.tags,
-    required this.selectedTag,
-    required this.onTagSelected,
-  });
-
-  final List<String> tags;
-  final String? selectedTag;
-  final ValueChanged<String> onTagSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    if (tags.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (final tag in tags) ...[
-            ChoiceChip(
-              label: Text(tag),
-              selected: selectedTag != null &&
-                  selectedTag!.toLowerCase() == tag.toLowerCase(),
-              onSelected: (_) => onTagSelected(tag),
-            ),
-            const SizedBox(width: 8),
-          ],
-        ],
-      ),
-    );
-  }
-}
+//class _TagFilterRow extends StatelessWidget {
+//  const _TagFilterRow({
+//    required this.tags,
+//    required this.selectedTag,
+//    required this.onTagSelected,
+//  });
+//
+//  final List<String> tags;
+//  final String? selectedTag;
+//  final ValueChanged<String> onTagSelected;
+//
+//  @override
+//  Widget build(BuildContext context) {
+//    if (tags.isEmpty) {
+//      return const SizedBox.shrink();
+//    }
+//
+//    return SingleChildScrollView(
+//      scrollDirection: Axis.horizontal,
+//      child: Row(
+//        children: [
+//          for (final tag in tags) ...[
+//            ChoiceChip(
+//              label: Text(tag),
+//              selected: selectedTag != null &&
+//                  selectedTag!.toLowerCase() == tag.toLowerCase(),
+//              onSelected: (_) => onTagSelected(tag),
+//            ),
+//            const SizedBox(width: 8),
+//          ],
+//        ],
+//      ),
+//    );
+//  }
+//}
 
 String _formatTags(List<String> tags) {
   final cleaned = tags
@@ -1046,14 +1311,24 @@ class _RecipeListTileState extends State<_RecipeListTile> {
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () async {
-              final deleted = await Navigator.of(context).push<bool>(
+              final result = await Navigator.of(context).push<dynamic>(
                 MaterialPageRoute(
                   builder: (_) => RecipeDetailScreen(recipe: recipe),
                 ),
               );
-              if (deleted == true && mounted) {
-                // hvis du fortsatt vil full reload ved delete
+
+              if (!mounted) return;
+
+              // Hvis detail returnerer oppdatert Recipe (etter markViewed),
+              // så oppdaterer vi parent sin cache via callback.
+              if (result is Recipe) {
+                widget.onRecipeChanged(result);
+                return;
               }
+
+              // Backward-compat: hvis detail returnerer bool (f.eks delete),
+              // gjør ingenting her (parent håndterer delete via reload/andre flows).
+              // Hvis du vil støtte delete lokalt senere, kan vi utvide callbacken.
             },
           ),
 
@@ -1134,11 +1409,80 @@ class _ShareDialogResult {
 class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   late Recipe _recipe;
   int? _scaledServings;
+  bool _keepScreenOn = false;
+
+  void _popWithRecipe() {
+    // Return updated recipe back to the list so sorting (Sist brukt / Mest brukt)
+    // can refresh without a full reload.
+    if (!Navigator.of(context).canPop()) return;
+    Navigator.of(context).pop<Recipe>(_recipe);
+  }
 
   @override
   void initState() {
     super.initState();
     _recipe = widget.recipe;
+    _registerView();
+  }
+
+  Future<void> _registerView() async {
+    // Oppdater lokalt først, så "Sist brukt" / "Mest brukt" blir riktig
+    // når vi returnerer _recipe til lista ved back.
+    final now = DateTime.now();
+
+    if (mounted) {
+      setState(() {
+        _recipe = Recipe(
+          id: _recipe.id,
+          title: _recipe.title,
+          description: _recipe.description,
+          servings: _recipe.servings,
+          ingredients: _recipe.ingredients,
+          steps: _recipe.steps,
+          metadata: _recipe.metadata,
+          sharedFromUsername: _recipe.sharedFromUsername,
+          isFavorite: _recipe.isFavorite,
+          isPinned: _recipe.isPinned,
+          favoritedAt: _recipe.favoritedAt,
+          pinnedAt: _recipe.pinnedAt,
+
+          // 👇 nye sorteringsfelt
+          createdAt: _recipe.createdAt,
+          updatedAt: _recipe.updatedAt,
+          lastViewedAt: now,
+          viewCount: (_recipe.viewCount ?? 0) + 1,
+        );
+      });
+    }
+
+    // Backend-kall (feil her skal ikke ødelegge UI-sortering)
+    try {
+      await quantBackend.markViewed(_recipe.id);
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  void _toggleKeepScreenOn() async {
+    final next = !_keepScreenOn;
+
+    setState(() {
+      _keepScreenOn = next;
+    });
+
+    if (next) {
+      await WakelockPlus.enable();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Skjermen holdes på')),
+      );
+    } else {
+      await WakelockPlus.disable();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Normal hvilemodus aktiv')),
+      );
+    }
   }
 
   double get _scaleFactor {
@@ -1170,53 +1514,69 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         return a.key!.toLowerCase().compareTo(b.key!.toLowerCase());
       });
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Oppskrift'),
-        actions: [
-          PopupMenuButton<_RecipeMenuAction>(
-            tooltip: 'Meny',
-            onSelected: (action) async {
-              switch (action) {
-                case _RecipeMenuAction.shareInApp:
-                  await _onTapShareInApp();
-                  break;
-
-                case _RecipeMenuAction.shareAsText:
-                  await _onTapShare();
-                  break;
-
-                case _RecipeMenuAction.duplicate:
-                  await _duplicateRecipe();
-                  break;
-
-                case _RecipeMenuAction.delete:
-                  await _onTapDelete();
-                  break;
-              }
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(
-                value: _RecipeMenuAction.shareInApp,
-                child: Text('Del i app'),
+    return WillPopScope(
+        onWillPop: () async {
+          _popWithRecipe();
+          return false;
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Oppskrift'),
+            leading: BackButton(onPressed: _popWithRecipe),
+            actions: [
+              IconButton(
+                tooltip: 'Hold skjerm på',
+                icon: Icon(
+                  Icons.wb_sunny_outlined,
+                  color: _keepScreenOn
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                ),
+                onPressed: _toggleKeepScreenOn,
               ),
-              PopupMenuItem(
-                value: _RecipeMenuAction.shareAsText,
-                child: Text('Del som tekst'),
-              ),
-              PopupMenuItem(
-                value: _RecipeMenuAction.duplicate,
-                child: Text('Dupliser'),
-              ),
-              PopupMenuDivider(),
-              PopupMenuItem(
-                value: _RecipeMenuAction.delete,
-                child: Text('Slett'),
+              PopupMenuButton<_RecipeMenuAction>(
+                tooltip: 'Meny',
+                onSelected: (action) async {
+                  switch (action) {
+                    case _RecipeMenuAction.shareInApp:
+                      await _onTapShareInApp();
+                      break;
+
+                    case _RecipeMenuAction.shareAsText:
+                      await _onTapShare();
+                      break;
+
+                    case _RecipeMenuAction.duplicate:
+                      await _duplicateRecipe();
+                      break;
+
+                    case _RecipeMenuAction.delete:
+                      await _onTapDelete();
+                      break;
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: _RecipeMenuAction.shareInApp,
+                    child: Text('Del i app'),
+                  ),
+                  PopupMenuItem(
+                    value: _RecipeMenuAction.shareAsText,
+                    child: Text('Del som tekst'),
+                  ),
+                  PopupMenuItem(
+                    value: _RecipeMenuAction.duplicate,
+                    child: Text('Dupliser'),
+                  ),
+                  PopupMenuDivider(),
+                  PopupMenuItem(
+                    value: _RecipeMenuAction.delete,
+                    child: Text('Slett'),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.only(
           left: 20,
@@ -1382,6 +1742,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           ],
         ),
       ),
+        ),
     );
   }
 

@@ -81,7 +81,13 @@ class QuantBackendHttp implements QuantBackend {
     await _apiClient.declineShare(shareId);
   }
 
-
+  @override
+  Future<Recipe> markViewed(String recipeId) {
+    return _guardAuth(() async {
+      final dto = await _apiClient.markViewed(recipeId);
+      return _dtoToRecipe(dto);
+    });
+  }
 
   @override
   Future<Recipe> importRecipeFromText(String rawText, {String? sourceUrl}) {
@@ -164,10 +170,17 @@ class QuantBackendHttp implements QuantBackend {
       sharedFromUsername: dto.sharedFromUsername,
 
       // NEW: map flags + timestamps from backend
+      // NEW: map flags + timestamps from backend
       isFavorite: dto.favorite,
       isPinned: dto.pinned,
       favoritedAt: dto.favoritedAt,
       pinnedAt: dto.pinnedAt,
+
+      // NEW: sorting/usage fields
+      createdAt: dto.createdAt,
+      updatedAt: dto.updatedAt,
+      lastViewedAt: dto.lastViewedAt,
+      viewCount: dto.viewCount,
     );
   }
 

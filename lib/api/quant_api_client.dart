@@ -191,6 +191,32 @@ class QuantApiClient {
     }
   }
 
+  /// Mark a recipe as viewed (increments viewCount and updates lastViewedAt).
+  ///
+  /// POST /api/recipes/{id}/view
+  Future<RecipeDto> markViewed(String id) async {
+    final uri = Uri.parse('$baseUrl/api/recipes/$id/view');
+    final response = await _http.post(
+      uri,
+      headers: await _authHeaders(),
+    );
+
+    _throwIfUnauthorized(response);
+
+    if (response.statusCode == 404) {
+      throw Exception('Recipe not found: $id');
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Failed to mark viewed: ${response.statusCode} ${response.reasonPhrase}',
+      );
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    return RecipeDto.fromJson(json);
+  }
+
   Future<Map<String, dynamic>> getMe() async {
     final uri = Uri.parse('$baseUrl/api/users/me');
     final response = await _http.get(
@@ -337,16 +363,4 @@ class QuantApiClient {
       );
     }
   }
-
-
-
-
-
-
-
-
 }
-
-
-
-

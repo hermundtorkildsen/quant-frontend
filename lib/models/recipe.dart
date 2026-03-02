@@ -12,12 +12,14 @@ class Recipe {
     this.steps = const [],
     this.metadata,
     this.sharedFromUsername,
-
-    // NEW: UX fields
     this.isFavorite = false,
     this.isPinned = false,
     this.favoritedAt,
     this.pinnedAt,
+    this.createdAt,
+    this.updatedAt,
+    this.lastViewedAt,
+    this.viewCount = 0,
   });
 
   final String id;
@@ -31,13 +33,14 @@ class Recipe {
   /// If this recipe was created by accepting a share, this is who shared it.
   final String? sharedFromUsername;
 
-  /// NEW: user flags stored on Recipe
   final bool isFavorite;
   final bool isPinned;
-
-  /// NEW: optional timestamps (if backend provides them)
   final DateTime? favoritedAt;
   final DateTime? pinnedAt;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+  final DateTime? lastViewedAt;
+  final int viewCount;
 
   static DateTime? _parseDateTime(dynamic value) {
     if (value == null) return null;
@@ -77,6 +80,10 @@ class Recipe {
     final favoritedAtRaw =
         json['favoritedAt'] ?? json['favorited_at'] ?? json['favoriteAt'];
     final pinnedAtRaw = json['pinnedAt'] ?? json['pinned_at'] ?? json['pinAt'];
+    final createdAtRaw = json['createdAt'] ?? json['created_at'];
+    final updatedAtRaw = json['updatedAt'] ?? json['updated_at'];
+    final lastViewedAtRaw = json['lastViewedAt'] ?? json['last_viewed_at'];
+    final viewCountRaw = json['viewCount'] ?? json['view_count'];
 
     return Recipe(
       id: id,
@@ -99,6 +106,10 @@ class Recipe {
       isPinned: _parseBool(pinnedRaw, defaultValue: false),
       favoritedAt: _parseDateTime(favoritedAtRaw),
       pinnedAt: _parseDateTime(pinnedAtRaw),
+      createdAt: _parseDateTime(createdAtRaw),
+      updatedAt: _parseDateTime(updatedAtRaw),
+      lastViewedAt: _parseDateTime(lastViewedAtRaw),
+      viewCount: (viewCountRaw is num) ? viewCountRaw.toInt() : 0,
     );
   }
 

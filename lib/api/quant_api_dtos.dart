@@ -3,6 +3,17 @@
 /// These DTOs match the JSON contract used by the backend.
 /// See docs/recipe_json_schema.md for the full JSON schema.
 
+DateTime? _parseDateTime(dynamic value) {
+  if (value == null) return null;
+  if (value is DateTime) return value;
+  if (value is String) {
+    final v = value.trim();
+    if (v.isEmpty) return null;
+    return DateTime.tryParse(v);
+  }
+  return null;
+}
+
 class RecipeDto {
   const RecipeDto({
     this.id,
@@ -17,6 +28,10 @@ class RecipeDto {
     this.pinned = false,
     this.favoritedAt,
     this.pinnedAt,
+    this.createdAt,
+    this.updatedAt,
+    this.lastViewedAt,
+    this.viewCount = 0,
   });
 
   final String? id;
@@ -31,6 +46,10 @@ class RecipeDto {
   final bool pinned;
   final DateTime? favoritedAt;
   final DateTime? pinnedAt;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+  final DateTime? lastViewedAt;
+  final int viewCount;
 
   static bool _parseBool(dynamic value, {bool defaultValue = false}) {
     if (value == null) return defaultValue;
@@ -75,6 +94,12 @@ class RecipeDto {
       pinned: _parseBool(json['pinned']),
       favoritedAt: _parseDateTime(json['favoritedAt']),
       pinnedAt: _parseDateTime(json['pinnedAt']),
+      createdAt: _parseDateTime(json['createdAt'] ?? json['created_at']),
+      updatedAt: _parseDateTime(json['updatedAt'] ?? json['updated_at']),
+      lastViewedAt: _parseDateTime(json['lastViewedAt'] ?? json['last_viewed_at']),
+      viewCount: (json['viewCount'] ?? json['view_count']) is num
+          ? (json['viewCount'] ?? json['view_count']).toInt()
+          : int.tryParse('${json['viewCount'] ?? json['view_count'] ?? 0}') ?? 0,
     );
   }
 
