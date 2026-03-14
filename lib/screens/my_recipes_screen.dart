@@ -1834,10 +1834,25 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Oppskrift delt med ${result.username}')),
       );
+
     } catch (e) {
       if (!mounted) return;
+
+      final errorText = e.toString();
+      String message = 'Kunne ikke dele oppskriften. Prøv igjen.';
+
+      if (errorText.contains('Recipe is already shared with this user')) {
+        message = 'Oppskriften er allerede delt med denne brukeren.';
+      } else if (errorText.contains('Cannot share recipe with yourself')) {
+        message = 'Du kan ikke dele en oppskrift med deg selv.';
+      } else if (errorText.contains('User not found')) {
+        message = 'Fant ikke brukeren.';
+      } else if (errorText.contains('Recipe not found')) {
+        message = 'Fant ikke oppskriften.';
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Kunne ikke dele: $e')),
+        SnackBar(content: Text(message)),
       );
     }
   }

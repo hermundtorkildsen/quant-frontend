@@ -11,7 +11,9 @@ class Recipe {
     this.ingredients = const [],
     this.steps = const [],
     this.metadata,
+    this.sharedFromUserId,
     this.sharedFromUsername,
+    this.sharedOriginalRecipeId,
     this.isFavorite = false,
     this.isPinned = false,
     this.favoritedAt,
@@ -30,8 +32,10 @@ class Recipe {
   final List<RecipeStep> steps;
   final RecipeMetadata? metadata;
 
-  /// If this recipe was created by accepting a share, this is who shared it.
+  /// If this recipe was created by accepting a share, these fields keep the share lineage.
+  final String? sharedFromUserId;
   final String? sharedFromUsername;
+  final String? sharedOriginalRecipeId;
 
   final bool isFavorite;
   final bool isPinned;
@@ -99,7 +103,9 @@ class Recipe {
       metadata: json['metadata'] != null
           ? RecipeMetadata.fromJson(json['metadata'] as Map<String, dynamic>)
           : null,
+      sharedFromUserId: json['sharedFromUserId'] as String?,
       sharedFromUsername: json['sharedFromUsername'] as String?,
+      sharedOriginalRecipeId: json['sharedOriginalRecipeId'] as String?,
 
       // NEW
       isFavorite: _parseBool(favoriteRaw, defaultValue: false),
@@ -122,12 +128,17 @@ class Recipe {
       'ingredients': ingredients.map((item) => item.toJson()).toList(),
       'steps': steps.map((step) => step.toJson()).toList(),
       'metadata': metadata?.toJson(),
-
-      // NEW: safe to include; backend can ignore if not used
+      'sharedFromUserId': sharedFromUserId,
+      'sharedFromUsername': sharedFromUsername,
+      'sharedOriginalRecipeId': sharedOriginalRecipeId,
       'favorite': isFavorite,
       'pinned': isPinned,
       if (favoritedAt != null) 'favoritedAt': favoritedAt!.toIso8601String(),
       if (pinnedAt != null) 'pinnedAt': pinnedAt!.toIso8601String(),
+      if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
+      if (updatedAt != null) 'updatedAt': updatedAt!.toIso8601String(),
+      if (lastViewedAt != null) 'lastViewedAt': lastViewedAt!.toIso8601String(),
+      'viewCount': viewCount,
     };
   }
 }

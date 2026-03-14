@@ -23,7 +23,9 @@ class RecipeDto {
     this.ingredients = const [],
     this.steps = const [],
     this.metadata,
+    this.sharedFromUserId,
     this.sharedFromUsername,
+    this.sharedOriginalRecipeId,
     this.favorite = false,
     this.pinned = false,
     this.favoritedAt,
@@ -41,7 +43,9 @@ class RecipeDto {
   final List<IngredientDto> ingredients;
   final List<RecipeStepDto> steps;
   final RecipeMetadataDto? metadata;
+  final String? sharedFromUserId;
   final String? sharedFromUsername;
+  final String? sharedOriginalRecipeId;
   final bool favorite;
   final bool pinned;
   final DateTime? favoritedAt;
@@ -89,7 +93,9 @@ class RecipeDto {
       metadata: json['metadata'] != null
           ? RecipeMetadataDto.fromJson(json['metadata'] as Map<String, dynamic>)
           : null,
+      sharedFromUserId: json['sharedFromUserId'] as String?,
       sharedFromUsername: json['sharedFromUsername'] as String?,
+      sharedOriginalRecipeId: json['sharedOriginalRecipeId'] as String?,
       favorite: _parseBool(json['favorite']),
       pinned: _parseBool(json['pinned']),
       favoritedAt: _parseDateTime(json['favoritedAt']),
@@ -112,6 +118,10 @@ class RecipeDto {
       'ingredients': ingredients.map((item) => item.toJson()).toList(),
       'steps': steps.map((step) => step.toJson()).toList(),
       if (metadata != null) 'metadata': metadata!.toJson(),
+      if (sharedFromUserId != null) 'sharedFromUserId': sharedFromUserId,
+      if (sharedFromUsername != null) 'sharedFromUsername': sharedFromUsername,
+      if (sharedOriginalRecipeId != null)
+        'sharedOriginalRecipeId': sharedOriginalRecipeId,
       'favorite': favorite,
       'pinned': pinned,
       if (favoritedAt != null) 'favoritedAt': favoritedAt!.toIso8601String(),

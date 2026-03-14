@@ -167,9 +167,10 @@ class QuantBackendHttp implements QuantBackend {
       )
           : null,
 
+      sharedFromUserId: dto.sharedFromUserId,
       sharedFromUsername: dto.sharedFromUsername,
+      sharedOriginalRecipeId: dto.sharedOriginalRecipeId,
 
-      // NEW: map flags + timestamps from backend
       // NEW: map flags + timestamps from backend
       isFavorite: dto.favorite,
       isPinned: dto.pinned,
@@ -218,6 +219,10 @@ class QuantBackendHttp implements QuantBackend {
         importMethod: recipe.metadata!.importMethod,
       )
           : null,
+
+      sharedFromUserId: recipe.sharedFromUserId,
+      sharedFromUsername: recipe.sharedFromUsername,
+      sharedOriginalRecipeId: recipe.sharedOriginalRecipeId,
 
       // ✅ send flags + timestamps to backend
       favorite: recipe.isFavorite,

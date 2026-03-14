@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../data/calculator_catalog.dart';
+
 import '../models/calculator_category.dart';
-import '../models/calculator_definition.dart';
 import '../models/calculator_variant.dart';
 import 'bakers_percentage_screen.dart';
-import 'generic_calculator_screen.dart';
 import 'pizza_calculator_screen.dart';
-import 'temperature_converter_screen.dart';
+import 'unit_converter_screen.dart';
+
 
 /// Screen showing all variants within a calculator category.
 class CalculatorCategoryScreen extends StatelessWidget {
@@ -39,7 +38,6 @@ class CalculatorCategoryScreen extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _VariantCard(
                   variant: variant,
-                  categoryId: category.id,
                 ),
               ),
             ),
@@ -91,13 +89,63 @@ class _HeaderSection extends StatelessWidget {
 class _VariantCard extends StatelessWidget {
   const _VariantCard({
     required this.variant,
-    required this.categoryId,
   });
 
   final CalculatorVariant variant;
-  final String categoryId;
 
   static const Color _textColor = Color(0xff1f140f);
+
+  void _handleVariantTap(BuildContext context) {
+    _navigateToVariant(
+      context: context,
+      variant: variant,
+    );
+  }
+
+  void _navigateToVariant({
+    required BuildContext context,
+    required CalculatorVariant variant,
+  }) {
+    if (variant.id == 'bread-bakers-percent') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => BakersPercentageScreen(
+            title: variant.title,
+            description: variant.description,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (variant.id == 'general-units') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const UnitConverterScreen(),
+        ),
+      );
+      return;
+    }
+
+    if (variant.id.startsWith('pizza')) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PizzaCalculatorScreen(
+            variantId: variant.id,
+            title: variant.title,
+            description: variant.description,
+          ),
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${variant.title} kalkulator kommer snart!'),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -113,61 +161,7 @@ class _VariantCard extends StatelessWidget {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: () {
-          // Navigate to pizza calculator for pizza category variants
-          if (categoryId == 'pizza') {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => PizzaCalculatorScreen(
-                  variantId: variant.id,
-                  title: variant.title,
-                  description: variant.description,
-                ),
-              ),
-            );
-          } else if (categoryId == 'bread' &&
-              variant.id == 'bread-bakers-percent') {
-            // Navigate to baker's percentage calculator
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => BakersPercentageScreen(
-                  title: variant.title,
-                  description: variant.description,
-                ),
-              ),
-            );
-          } else if (categoryId == 'general-tools' &&
-              variant.id == 'general-temperature') {
-            // Navigate to generic calculator screen for temperature converter
-            final definition = getCalculatorDefinitionForVariant(variant.id);
-            if (definition != null) {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => GenericCalculatorScreen(
-                    definition: definition,
-                  ),
-                ),
-              );
-            } else {
-              // Fallback to old screen if definition not found
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => TemperatureConverterScreen(
-                    title: variant.title,
-                    description: variant.description,
-                  ),
-                ),
-              );
-            }
-          } else {
-            // For other categories, show "not implemented" message
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('${variant.title} kalkulator kommer snart!'),
-              ),
-            );
-          }
-        },
+        onTap: () => _handleVariantTap(context),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(

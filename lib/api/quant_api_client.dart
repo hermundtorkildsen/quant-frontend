@@ -184,10 +184,24 @@ class QuantApiClient {
 
     _throwIfUnauthorized(response);
 
+
+
     if (response.statusCode != 200 && response.statusCode != 201) {
-      throw Exception(
-        'Failed to share recipe: ${response.statusCode} ${response.reasonPhrase} ${response.body}',
-      );
+      String message = 'Failed to share recipe';
+
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          final backendMessage = decoded['message']?.toString();
+          if (backendMessage != null && backendMessage.trim().isNotEmpty) {
+            message = backendMessage.trim();
+          }
+        }
+      } catch (_) {
+        // ignore parse errors and fall back to generic message
+      }
+
+      throw Exception(message);
     }
   }
 
