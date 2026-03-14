@@ -311,13 +311,23 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
 
   String _cleanAndCapText(String input) {
     var t = input.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+
+    // Normaliser non-breaking spaces
+    t = t.replaceAll('\u00A0', ' ');
+
+    // Fjern trailing spaces før linjeskift
     t = t.replaceAll(RegExp(r'[ \t]+\n'), '\n');
+
+    // Kollaps mange spaces/tab inni linjer
+    t = t.replaceAll(RegExp(r'[ \t]{2,}'), ' ');
+
+    // Maks 2–3 blanklinjer på rad
     t = t.replaceAll(RegExp(r'\n{4,}'), '\n\n\n');
+
     t = t.trim();
 
     if (t.length <= _maxTextLength) return t;
 
-    // Head + tail bevarer ofte både intro og selve oppskriften (som ofte ligger i midten/bunnen).
     final headLen = (_maxTextLength * 0.6).floor();
     final tailLen = _maxTextLength - headLen;
 
@@ -458,6 +468,50 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
       .replace(/\\n{4,}/g, '\\n\\n\\n')
       .trim();
   }
+  
+  function safeText(s) {
+    if (!s) return '';
+    return normalizeText(String(s)).replace(/\s+/g, ' ').trim();
+  }
+  
+    function flattenCandidates(jsonData) {
+    if (!jsonData) return [];
+
+    if (Array.isArray(jsonData)) return jsonData;
+
+    if (jsonData['@graph'] && Array.isArray(jsonData['@graph'])) {
+      return jsonData['@graph'];
+    }
+
+    if (jsonData.mainEntity) {
+      if (Array.isArray(jsonData.mainEntity)) return jsonData.mainEntity;
+      return [jsonData.mainEntity];
+    }
+
+    return [jsonData];
+  }
+
+  function isRecipeType(type) {
+    if (!type) return false;
+
+    if (type === 'Recipe') return true;
+    if (type === 'https://schema.org/Recipe') return true;
+    if (type === 'http://schema.org/Recipe') return true;
+
+    if (Array.isArray(type)) {
+      for (const t of type) {
+        if (
+          t === 'Recipe' ||
+          t === 'https://schema.org/Recipe' ||
+          t === 'http://schema.org/Recipe'
+        ) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
 
   function getCleanVisibleText(isHard) {
     const root =
@@ -509,6 +563,109 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
   }
 
   try {
+  
+//      // -------------------------
+//  // Try JSON-LD recipe first
+//  // -------------------------
+//
+//  try {
+//    const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+//
+//    for (const script of scripts) {
+//      try {
+//        const raw = script.textContent;
+//        if (!raw) continue;
+//
+//        const jsonData = JSON.parse(raw);
+//        const candidates = flattenCandidates(jsonData);
+//
+//        for (const c of candidates) {
+//          if (c && isRecipeType(c['@type'])) {
+//
+//            const title = safeText(c.name || c.headline || '');
+//
+//            let ingredients = [];
+//
+//            if (typeof c.recipeIngredient === 'string') {
+//              const cleaned = safeText(c.recipeIngredient);
+//              if (cleaned) {
+//                ingredients = [cleaned];
+//              }
+//            } else if (Array.isArray(c.recipeIngredient)) {
+//              ingredients = c.recipeIngredient
+//                .map(x => {
+//                  if (typeof x === 'string') return safeText(x);
+//                  if (x && x.text) return safeText(x.text);
+//                  return safeText(x);
+//                })
+//                .filter(x => x);
+//            }
+//
+//            const stepsRaw = c.recipeInstructions;
+//
+//            let steps = [];
+//
+//            function pushStep(value) {
+//              const cleaned = safeText(value);
+//              if (!cleaned) return;
+//
+//              if (!steps.includes(cleaned)) {
+//                steps.push(cleaned);
+//              }
+//            }
+//
+//            function collectSteps(node) {
+//              if (!node) return;
+//
+//              if (typeof node === 'string') {
+//                pushStep(node);
+//                return;
+//              }
+//
+//              if (Array.isArray(node)) {
+//                for (const item of node) {
+//                  collectSteps(item);
+//                }
+//                return;
+//              }
+//
+//              if (node.text) {
+//                pushStep(node.text);
+//              }
+//
+//              if (node.itemListElement) {
+//                collectSteps(node.itemListElement);
+//              }
+//
+//              if (node.steps) {
+//                collectSteps(node.steps);
+//              }
+//            }
+//
+//            collectSteps(stepsRaw);
+//
+//            const hasEnoughData =
+//              title.length > 0 ||
+//              ingredients.length >= 3 ||
+//              steps.length >= 2;
+//
+//            if (hasEnoughData) {
+//              return JSON.stringify({
+//                kind: 'recipe',
+//                title: title,
+//                ingredients: ingredients,
+//                steps: steps,
+//                sourceUrl: (location && location.href) ? location.href : ''
+//              });
+//            }
+//          }
+//        }
+//
+//      } catch (e) {}
+//    }
+//
+//  } catch (e) {}
+  
     const title =
       document.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
       document.querySelector('h1')?.innerText ||
@@ -536,466 +693,6 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
 ''';
 
 
-
-
-//  String _jsExtractRecipe() => r'''
-//(function() {
-//  function safeText(s) {
-//    if (!s) return '';
-//    return String(s).replace(/\s+/g, ' ').trim();
-//  }
-//
-//  function getCleanVisibleText() {
-//    const root =
-//      document.querySelector('article') ||
-//      document.querySelector('main') ||
-//      document.querySelector('[role="main"]') ||
-//      document.body;
-//
-//    if (!root) return '';
-//
-//    const node = root.cloneNode(true);
-//
-//    // remove obvious noise
-//    const selectors = [
-//      'script','style','noscript',
-//      'nav','header','footer','aside',
-//      '[role="navigation"]',
-//      '[aria-modal="true"]',
-//      '[class*="cookie"]','[id*="cookie"]',
-//      '[class*="consent"]','[id*="consent"]',
-//      '[class*="banner"]','[id*="banner"]',
-//      '[class*="modal"]','[id*="modal"]',
-//    ];
-//
-//    for (const sel of selectors) {
-//      const els = node.querySelectorAll(sel);
-//      for (const el of els) el.remove();
-//    }
-//
-//    return node.innerText || '';
-//  }
-//
-//  try {
-//    const title =
-//      document.querySelector('meta[property="og:title"]')?.getAttribute('content') ||
-//      document.querySelector('h1')?.innerText ||
-//      document.title ||
-//      '';
-//
-//    const text = getCleanVisibleText();
-//
-//    return JSON.stringify({
-//      kind: 'text',
-//      title: safeText(title),
-//      text: text,
-//      sourceUrl: (location && location.href) ? location.href : ''
-//    });
-//  } catch (e) {
-//    const text = (document.body && document.body.innerText) ? document.body.innerText : '';
-//    return JSON.stringify({
-//      kind: 'text',
-//      title: '',
-//      text: text,
-//      sourceUrl: (location && location.href) ? location.href : ''
-//    });
-//  }
-//})();
-//''';
-
-
-
-
-
-//  String _jsExtractRecipe() => r'''
-//(function() {
-//  function safeText(s) {
-//    if (!s) return '';
-//    return String(s).replace(/\s+/g, ' ').trim();
-//  }
-//
-//  function flattenCandidates(jsonData) {
-//    if (!jsonData) return [];
-//    if (Array.isArray(jsonData)) return jsonData;
-//
-//    if (jsonData['@graph'] && Array.isArray(jsonData['@graph'])) {
-//      return jsonData['@graph'];
-//    }
-//
-//    if (jsonData.mainEntity) {
-//      if (Array.isArray(jsonData.mainEntity)) return jsonData.mainEntity;
-//      return [jsonData.mainEntity];
-//    }
-//
-//    return [jsonData];
-//  }
-//
-//  function isRecipeType(type) {
-//    if (!type) return false;
-//    if (type === 'Recipe') return true;
-//    if (type === 'https://schema.org/Recipe' || type === 'http://schema.org/Recipe') return true;
-//    if (Array.isArray(type)) {
-//      for (const t of type) {
-//        if (t === 'Recipe' || t === 'https://schema.org/Recipe' || t === 'http://schema.org/Recipe') return true;
-//      }
-//    }
-//    return false;
-//  }
-//
-//  function extractIngredients(recipeData) {
-//    let ingredients = [];
-//    const ri = recipeData.recipeIngredient;
-//
-//    if (!ri) return ingredients;
-//
-//    if (typeof ri === 'string') {
-//      const s = safeText(ri);
-//      return s ? [s] : [];
-//    }
-//
-//    if (Array.isArray(ri)) {
-//      for (const ing of ri) {
-//        if (typeof ing === 'string') {
-//          const s = safeText(ing);
-//          if (s) ingredients.push(s);
-//          continue;
-//        }
-//        if (ing && ing.text) {
-//          const s = safeText(ing.text);
-//          if (s) ingredients.push(s);
-//          continue;
-//        }
-//        const s = safeText(ing);
-//        if (s) ingredients.push(s);
-//      }
-//      return ingredients.filter(Boolean);
-//    }
-//
-//    return ingredients;
-//  }
-//
-//  function extractInstructions(recipeData) {
-//    let steps = [];
-//
-//    function pushStepText(t) {
-//      const s = safeText(t);
-//      if (s) steps.push(s);
-//    }
-//
-//    function handleInstructionNode(node) {
-//      if (!node) return;
-//
-//      if (typeof node === 'string') {
-//        pushStepText(node);
-//        return;
-//      }
-//
-//      if (node.text) {
-//        pushStepText(node.text);
-//        return;
-//      }
-//
-//      const t = node['@type'];
-//      const isSection = t === 'HowToSection' || (Array.isArray(t) && t.includes('HowToSection'));
-//      if (isSection) {
-//        const name = node.name || node.headline;
-//        if (name) {
-//          steps.push('');
-//          steps.push(safeText(name) + ':');
-//        }
-//        const items = node.itemListElement || node.steps || [];
-//        if (Array.isArray(items)) {
-//          for (const it of items) handleInstructionNode(it);
-//        } else {
-//          handleInstructionNode(items);
-//        }
-//        return;
-//      }
-//
-//      if (node.itemListElement && Array.isArray(node.itemListElement)) {
-//        for (const it of node.itemListElement) handleInstructionNode(it);
-//        return;
-//      }
-//    }
-//
-//    const ri = recipeData.recipeInstructions;
-//    if (!ri) return steps;
-//
-//    if (typeof ri === 'string') {
-//      handleInstructionNode(ri);
-//      return steps;
-//    }
-//
-//    if (Array.isArray(ri)) {
-//      for (const n of ri) handleInstructionNode(n);
-//      return steps;
-//    }
-//
-//    handleInstructionNode(ri);
-//    return steps;
-//  }
-//
-//  function uniqKeepOrder(arr) {
-//    const seen = new Set();
-//    const out = [];
-//    for (const x of arr) {
-//      const s = safeText(x);
-//      if (!s) continue;
-//      const key = s.toLowerCase();
-//      if (seen.has(key)) continue;
-//      seen.add(key);
-//      out.push(s);
-//    }
-//    return out;
-//  }
-//
-//  function queryTextList(selectors) {
-//    for (const sel of selectors) {
-//      const nodes = document.querySelectorAll(sel);
-//      if (!nodes || nodes.length === 0) continue;
-//      const vals = [];
-//      for (const n of nodes) {
-//        const t = safeText(n.innerText || n.textContent);
-//        if (t) vals.push(t);
-//      }
-//      if (vals.length > 0) return uniqKeepOrder(vals);
-//    }
-//    return [];
-//  }
-//
-//  // ----------- DOM recipe extraction (generic scoring) -----------
-//
-//  function collectLis(listEl) {
-//    const items = Array.from(listEl.querySelectorAll('li'))
-//      .map(li => safeText(li.innerText || li.textContent))
-//      .filter(s => s && s.length >= 2);
-//    return uniqKeepOrder(items);
-//  }
-//
-//  function ingredientLineScore(line) {
-//    const s = line;
-//    let score = 0;
-//
-//    // Numbers are common in ingredients
-//    if (/\d/.test(s)) score += 2;
-//
-//    // Unit tokens (NO + EN). General purpose (not site-specific).
-//    if (/\b(gram|g|kg|dl|cl|l|ml|stk|pk|pose|boks|ss|spsk|ts|teskje|klype|fedd|skive|skiver)\b/i.test(s)) score += 2;
-//    if (/\b(cup|tbsp|tsp|oz|lb|pinch|clove|slice|slices)\b/i.test(s)) score += 2;
-//
-//    // Reasonable length
-//    if (s.length <= 90) score += 1;
-//    if (s.length > 180) score -= 2;
-//
-//    // Avoid junk
-//    if (/https?:\/\//i.test(s)) score -= 6;
-//    if (/(facebook|instagram|pinterest|del|share|cookie|privacy|abonner|subscribe|logg inn|sign in|newsletter)/i.test(s)) score -= 3;
-//
-//    return score;
-//  }
-//
-//  function scoreIngredientList(items) {
-//    if (!items || items.length < 3) return -999;
-//
-//    let sum = 0;
-//    let good = 0;
-//    for (const it of items) {
-//      const sc = ingredientLineScore(it);
-//      sum += sc;
-//      if (sc >= 3) good++;
-//    }
-//
-//    // Prefer lists where many lines look like real ingredients
-//    sum += good * 2;
-//
-//    // Penalize if it looks like a generic link list
-//    const manyShort = items.filter(x => x.length <= 25).length;
-//    if (manyShort > items.length * 0.7) sum -= 4;
-//
-//    return sum;
-//  }
-//
-//  function stepLineScore(line) {
-//    const s = line;
-//    let score = 0;
-//    if (s.length >= 20) score += 1;
-//    if (/(stek|kok|bland|tilsett|la|sett|varm|server|preheat|bake|stir|add|cook)/i.test(s)) score += 2;
-//    if (/https?:\/\//i.test(s)) score -= 6;
-//    if (/(cookie|privacy|subscribe|logg inn|sign in|newsletter)/i.test(s)) score -= 3;
-//    return score;
-//  }
-//
-//  function scoreStepList(items) {
-//    if (!items || items.length < 3) return -999;
-//    let sum = 0;
-//    for (const it of items) sum += stepLineScore(it);
-//    return sum;
-//  }
-//
-//  function extractRecipeFromDom() {
-//    const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
-//    const h1 = document.querySelector('h1')?.innerText;
-//    const title = safeText(ogTitle || h1 || document.title || '');
-//
-//    const root =
-//      document.querySelector('article') ||
-//      document.querySelector('main') ||
-//      document.querySelector('[itemtype*="schema.org/Recipe"]') ||
-//      document.body;
-//
-//    // Ingredients: start with microdata if present
-//    let ingredients = queryTextList(['[itemprop="recipeIngredient"]']);
-//    let bestIngredients = ingredients;
-//    let bestIngScore = scoreIngredientList(bestIngredients);
-//
-//    // Then score UL/OL candidates inside root
-//    const lists = root ? root.querySelectorAll('ul,ol') : document.querySelectorAll('ul,ol');
-//    for (const listEl of lists) {
-//      const liCount = listEl.querySelectorAll('li').length;
-//      if (liCount < 3 || liCount > 70) continue;
-//
-//      const items = collectLis(listEl);
-//      const sc = scoreIngredientList(items);
-//      if (sc > bestIngScore) {
-//        bestIngScore = sc;
-//        bestIngredients = items;
-//      }
-//    }
-//    ingredients = bestIngredients || [];
-//
-//    // Steps: try common selectors first
-//    let steps = queryTextList([
-//      '[itemprop="recipeInstructions"] li',
-//      '[itemprop="recipeInstructions"] p',
-//      '[class*="instruction"] li',
-//      '[class*="fremgang"] li',
-//      '.instructions li',
-//      '#instructions li',
-//    ]).filter(s => s.length >= 5 && !/^\d+$/.test(s));
-//
-//    // If weak, score OL candidates
-//    if (!steps || steps.length < 3) {
-//      let bestSteps = steps || [];
-//      let bestStepScore = scoreStepList(bestSteps);
-//
-//      const ols = root ? root.querySelectorAll('ol') : document.querySelectorAll('ol');
-//      for (const ol of ols) {
-//        const liCount = ol.querySelectorAll('li').length;
-//        if (liCount < 3 || liCount > 50) continue;
-//
-//        const items = collectLis(ol).filter(s => s.length >= 5 && !/^\d+$/.test(s));
-//        const sc = scoreStepList(items);
-//        if (sc > bestStepScore) {
-//          bestStepScore = sc;
-//          bestSteps = items;
-//        }
-//      }
-//      steps = bestSteps;
-//    }
-//
-//    const ok = (ingredients.length >= 3) || (steps && steps.length >= 3);
-//    if (!ok) return null;
-//
-//    return {
-//      kind: 'recipe',
-//      title: title,
-//      ingredients: ingredients,
-//      steps: steps || [],
-//      sourceUrl: (location && location.href) ? location.href : ''
-//    };
-//  }
-//
-//  function bestEffortMainText() {
-//    const root =
-//      document.querySelector('article') ||
-//      document.querySelector('main') ||
-//      document.querySelector('[itemtype*="schema.org/Recipe"]') ||
-//      document.body;
-//
-//    if (!root) return '';
-//
-//    const node = root.cloneNode(true);
-//
-//    const selectors = [
-//      'script', 'style', 'noscript',
-//      'nav', 'header', 'footer',
-//      'aside', '[role="navigation"]',
-//      '.comments', '#comments',
-//      '.newsletter', '.signup',
-//      '.share', '.social', '.related', '.recommended',
-//      '.cookie', '#cookie', '[id*="cookie"]', '[class*="cookie"]',
-//      '[aria-label*="cookie"]', '[aria-label*="consent"]',
-//      '[class*="banner"]', '[id*="banner"]',
-//      '[class*="paywall"]', '[id*="paywall"]',
-//      '[class*="subscribe"]', '[id*="subscribe"]',
-//      '[class*="modal"]', '[id*="modal"]',
-//    ];
-//    for (const sel of selectors) {
-//      const els = node.querySelectorAll(sel);
-//      for (const el of els) el.remove();
-//    }
-//
-//    return node.innerText || '';
-//  }
-//
-//  try {
-//    const scripts = document.querySelectorAll('script[type="application/ld+json"]');
-//    let recipeData = null;
-//
-//    for (const script of scripts) {
-//      try {
-//        const raw = script.textContent;
-//        if (!raw || !raw.trim()) continue;
-//
-//        const jsonData = JSON.parse(raw);
-//        const candidates = flattenCandidates(jsonData);
-//
-//        for (const c of candidates) {
-//          if (c && isRecipeType(c['@type'])) {
-//            recipeData = c;
-//            break;
-//          }
-//        }
-//        if (recipeData) break;
-//      } catch (e) {
-//        continue;
-//      }
-//    }
-//
-//    if (recipeData) {
-//      const title = safeText(recipeData.name || recipeData.headline || '');
-//      const ingredients = extractIngredients(recipeData);
-//      const steps = extractInstructions(recipeData);
-//
-//      return JSON.stringify({
-//        kind: 'recipe',
-//        title: title,
-//        ingredients: ingredients,
-//        steps: steps,
-//        sourceUrl: (location && location.href) ? location.href : ''
-//      });
-//    }
-//
-//    const domRecipe = extractRecipeFromDom();
-//    if (domRecipe) return JSON.stringify(domRecipe);
-//
-//    const text = bestEffortMainText();
-//    return JSON.stringify({
-//      kind: 'text',
-//      text: text,
-//      sourceUrl: (location && location.href) ? location.href : ''
-//    });
-//  } catch (e) {
-//    const text = (document.body && document.body.innerText) ? document.body.innerText : '';
-//    return JSON.stringify({
-//      kind: 'text',
-//      text: text,
-//      sourceUrl: (location && location.href) ? location.href : ''
-//    });
-//  }
-//})();
-//''';
-//
 
   // ---------------------------
   //  UI
