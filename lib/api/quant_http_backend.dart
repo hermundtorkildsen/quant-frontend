@@ -224,6 +224,10 @@ class QuantBackendHttp implements QuantBackend {
       pinned: recipe.isPinned,
       favoritedAt: recipe.favoritedAt,
       pinnedAt: recipe.pinnedAt,
+      createdAt: recipe.createdAt,
+      updatedAt: recipe.updatedAt,
+      lastViewedAt: recipe.lastViewedAt,
+      viewCount: recipe.viewCount,
     );
   }
 }

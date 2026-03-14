@@ -42,7 +42,7 @@ class _QuantHomeScreenState extends State<QuantHomeScreen> {
     return Scaffold(
       backgroundColor: QuantHomeScreen._backgroundColor,
       appBar: AppBar(
-        title: const Text('Quant'),
+        title: const Text('Mise'),
         actions: [
           // 📬 Inbox icon
           Stack(
@@ -145,7 +145,7 @@ class _QuantHomeBody extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: const [
           _HeaderSection(),
-          SizedBox(height: 32),
+          SizedBox(height: 24),
           _MainActions(),
         ],
       ),
@@ -160,60 +160,42 @@ class _HeaderSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
+    final greetingStyle = textTheme.titleLarge?.copyWith(
+      fontWeight: FontWeight.w600,
+      color: QuantHomeScreen._textColor,
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         FutureBuilder<Map<String, dynamic>>(
           future: quantBackend.getMe(),
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
+            if (snapshot.connectionState == ConnectionState.waiting || snapshot.hasError) {
               return Text(
-                'Velkommen',
-                style: textTheme.labelMedium?.copyWith(
-                  letterSpacing: 1.1,
-                  fontWeight: FontWeight.w600,
-                  color: QuantHomeScreen._textColor.withOpacity(0.75),
-                ),
-              );
-            }
-
-            if (snapshot.hasError) {
-              return Text(
-                'Velkommen',
-                style: textTheme.labelMedium?.copyWith(
-                  letterSpacing: 1.1,
-                  fontWeight: FontWeight.w600,
-                  color: QuantHomeScreen._textColor.withOpacity(0.75),
-                ),
+                'Hei',
+                style: greetingStyle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               );
             }
 
             final username = (snapshot.data?['username'] ?? '').toString().trim();
-            final greeting = username.isNotEmpty ? 'Velkommen, $username' : 'Velkommen';
+            final greeting = username.isNotEmpty ? 'Hei, $username' : 'Hei';
 
             return Text(
               greeting,
-              style: textTheme.labelMedium?.copyWith(
-                letterSpacing: 1.1,
-                fontWeight: FontWeight.w600,
-                color: QuantHomeScreen._textColor.withOpacity(0.75),
-              ),
+              style: greetingStyle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             );
           },
         ),
         const SizedBox(height: 8),
         Text(
-          'Quant',
-          style: textTheme.displaySmall?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: QuantHomeScreen._textColor,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
           'Lagre, organiser og perfeksjoner oppskriftene dine.',
-          style: textTheme.bodyLarge?.copyWith(
-            color: QuantHomeScreen._textColor.withOpacity(0.85),
+          style: textTheme.bodyMedium?.copyWith(
+            color: QuantHomeScreen._textColor.withOpacity(0.8),
           ),
         ),
       ],

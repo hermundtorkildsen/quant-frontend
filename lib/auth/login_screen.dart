@@ -103,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 onPressed: _loading ? null : _doLogin,
                 child: _loading
                     ? const Text('...')
-                    : const Text('Login'),
+                    : const Text('Log inn'),
               ),
             ),
 

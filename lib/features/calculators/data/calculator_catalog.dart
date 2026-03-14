@@ -12,7 +12,7 @@ final List<CalculatorCategory> calculatorCategories = [
     variants: [
       CalculatorVariant(
         id: 'pizza-neapolitan',
-        title: 'Neapolitan',
+        title: 'Neapolitansk',
         description: 'Klassisk neapolitansk stil',
       ),
       CalculatorVariant(
@@ -22,7 +22,7 @@ final List<CalculatorCategory> calculatorCategories = [
       ),
       CalculatorVariant(
         id: 'pizza-roman',
-        title: 'Roman',
+        title: 'Romersk',
         description: 'Romersk stil pizza',
       ),
       CalculatorVariant(
@@ -37,7 +37,7 @@ final List<CalculatorCategory> calculatorCategories = [
       ),
       CalculatorVariant(
         id: 'pizza-cold-ferment',
-        title: 'Cold Ferment',
+        title: 'Kaldgjæring',
         description: 'Lang kaldgjæring',
       ),
     ],
@@ -57,13 +57,13 @@ final List<CalculatorCategory> calculatorCategories = [
   ),
   CalculatorCategory(
     id: 'general-tools',
-    title: 'General Tools',
+    title: 'Generelle verktøy',
     icon: '🔧',
     description: 'Generelle kalkulatorer for matlaging',
     variants: [
       CalculatorVariant(
         id: 'general-temperature',
-        title: 'Temperature Converter',
+        title: 'Temperaturomregner',
         description: 'Konverter mellom Celsius, Fahrenheit og Kelvin',
       ),
     ],
@@ -77,7 +77,7 @@ CalculatorDefinition? getCalculatorDefinitionForVariant(String variantId) {
     case 'general-temperature':
       return CalculatorDefinition(
         id: 'general-temperature',
-        title: 'Temperature Converter',
+        title: 'Temperaturomregner',
         description: 'Konverter mellom Celsius, Fahrenheit og Kelvin',
         fields: [
           CalculatorFieldDefinition(

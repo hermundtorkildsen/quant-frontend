@@ -123,7 +123,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 8),
             TextButton(
               onPressed: _loading ? null : () => Navigator.of(context).pop(),
-              child: const Text('Tilbake til login'),
+              child: const Text('Tilbake til innlogging'),
             ),
           ],
         ),

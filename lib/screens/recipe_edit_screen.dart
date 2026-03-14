@@ -207,6 +207,18 @@ class _RecipeEditScreenState extends State<RecipeEditScreen> {
         ingredients: ingredients,
         steps: steps,
         metadata: metadata,
+
+        sharedFromUsername: widget.recipe.sharedFromUsername,
+
+        isFavorite: widget.recipe.isFavorite,
+        isPinned: widget.recipe.isPinned,
+        favoritedAt: widget.recipe.favoritedAt,
+        pinnedAt: widget.recipe.pinnedAt,
+
+        createdAt: widget.recipe.createdAt,
+        updatedAt: widget.recipe.updatedAt,
+        lastViewedAt: widget.recipe.lastViewedAt,
+        viewCount: widget.recipe.viewCount,
       );
 
       final savedRecipe = await quantBackend.saveRecipe(updatedRecipe);

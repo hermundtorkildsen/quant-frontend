@@ -275,7 +275,7 @@ class QuantApiClient {
   void _throwIfUnauthorized(http.Response response) {
     if (response.statusCode != 401) return;
 
-    String msg = "Session expired";
+    String msg = "Økten er utløpt";
 
     // prøv å hente message fra backend JSON, men ikke swallow vår egen throw
     try {

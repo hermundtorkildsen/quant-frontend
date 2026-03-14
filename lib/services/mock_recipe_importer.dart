@@ -15,7 +15,7 @@ Future<Recipe> mockImportFromText(
       .where((l) => l.isNotEmpty)
       .toList();
 
-  final title = lines.isNotEmpty ? lines.first : 'Imported recipe';
+  final title = lines.isNotEmpty ? lines.first : 'Importert oppskrift';
   final description = lines.length > 1 ? lines.sublist(1).join(' ') : null;
 
   final json = <String, dynamic>{

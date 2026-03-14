@@ -347,7 +347,10 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
                 recipe.title.toLowerCase().contains(q) ||
                 (recipe.description ?? '').toLowerCase().contains(q) ||
                 (recipe.metadata?.categories ?? [])
-                    .any((c) => c.toLowerCase().contains(q));
+                    .any((c) => c.toLowerCase().contains(q)) ||
+                recipe.ingredients.any(
+                      (i) => i.item.toLowerCase().contains(q),
+                );
 
             final matchesTag = _selectedTag == null ||
                 (recipe.metadata?.categories ?? [])
@@ -588,6 +591,13 @@ class _MyRecipesScreenState extends State<MyRecipesScreen> {
                     _cachedRecipes = (_cachedRecipes ?? recipes).map((r) {
                       return r.id == updated.id ? updated : r;
                     }).toList();
+                  });
+                },
+                onRecipeDeleted: () {
+                  setState(() {
+                    _cachedRecipes = (_cachedRecipes ?? recipes)
+                        .where((r) => r.id != recipe.id)
+                        .toList();
                   });
                 },
               );
@@ -1124,11 +1134,13 @@ class _RecipeListTile extends StatefulWidget {
   const _RecipeListTile({
     required this.recipe,
     required this.onRecipeChanged,
+    required this.onRecipeDeleted,
     required this.canMutate,
   });
 
   final Recipe recipe;
   final ValueChanged<Recipe> onRecipeChanged; // oppdaterer lista lokalt
+  final VoidCallback onRecipeDeleted; // fjerner fra lista lokalt
   final bool canMutate;
 
   @override
@@ -1323,6 +1335,12 @@ class _RecipeListTileState extends State<_RecipeListTile> {
               // så oppdaterer vi parent sin cache via callback.
               if (result is Recipe) {
                 widget.onRecipeChanged(result);
+                return;
+              }
+
+              if (result == true) {
+                // RecipeDetailScreen returnerer true ved slett
+                widget.onRecipeDeleted();
                 return;
               }
 

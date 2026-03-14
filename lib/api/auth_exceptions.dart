@@ -1,5 +1,5 @@
 class AuthExpiredException implements Exception {
-  AuthExpiredException({this.message = "Session expired"});
+  AuthExpiredException({this.message = "Økten er utløpt"});
   final String message;
 
   @override

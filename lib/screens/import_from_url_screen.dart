@@ -174,9 +174,10 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
 
   Future<void> _extractRecipeData() async {
     if (_importTriggered) return;
+    _attempt++;
 
     try {
-      final result = await _controller.runJavaScriptReturningResult(_jsExtractRecipe());
+      final result = await _controller.runJavaScriptReturningResult(_jsExtractRecipe(hard: _attempt >= 3));
       if (!mounted) return;
 
       final decoded = _decodeWebViewJson(result);
@@ -314,10 +315,18 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
     t = t.replaceAll(RegExp(r'\n{4,}'), '\n\n\n');
     t = t.trim();
 
-    if (t.length > _maxTextLength) {
-      t = t.substring(0, _maxTextLength);
-    }
-    return t;
+    if (t.length <= _maxTextLength) return t;
+
+    // Head + tail bevarer ofte både intro og selve oppskriften (som ofte ligger i midten/bunnen).
+    final headLen = (_maxTextLength * 0.6).floor();
+    final tailLen = _maxTextLength - headLen;
+
+    final head = t.substring(0, headLen);
+    final tail = t.substring(t.length - tailLen);
+
+    return (head +
+        '\n\n--- (tekst forkortet for import) ---\n\n' +
+        tail).trim();
   }
 
   String _formatRecipeForClaude(Map<String, dynamic> decoded) {
@@ -403,12 +412,12 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
     final t = text.trim();
     if (t.isEmpty) return true;
 
-    // too short to be useful
-    if (t.length < 400) return true;
+    // For streng før: 400 kan drepe korte oppskrifter (dressing/drink).
+    if (t.length < 200) return true;
 
     final lower = t.toLowerCase();
 
-    // obvious paywall/login
+    // åpenbar paywall/login
     const blockedHints = [
       'logg inn',
       'abonnement',
@@ -424,6 +433,11 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
       if (lower.contains(h)) return true;
     }
 
+    // Hvis det ser ut som cookie-consent, la retry fortsette (ikke blokker hardt her)
+    if (_looksLikeCookieConsentText(t)) {
+      return true;
+    }
+
     return false;
   }
 
@@ -433,19 +447,19 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
   // ---------------------------
 
 
-  String _jsExtractRecipe() => r'''
+  String _jsExtractRecipe({required bool hard}) => '''
 (function() {
   function normalizeText(s) {
     if (!s) return '';
     return String(s)
-      .replace(/\r\n/g, '\n')
-      .replace(/\r/g, '\n')
-      .replace(/[ \t]+\n/g, '\n')
-      .replace(/\n{4,}/g, '\n\n\n')
+      .replace(/\\r\\n/g, '\\n')
+      .replace(/\\r/g, '\\n')
+      .replace(/[ \\t]+\\n/g, '\\n')
+      .replace(/\\n{4,}/g, '\\n\\n\\n')
       .trim();
   }
 
-  function getCleanVisibleText() {
+  function getCleanVisibleText(isHard) {
     const root =
       document.querySelector('article') ||
       document.querySelector('main') ||
@@ -456,8 +470,8 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
 
     const node = root.cloneNode(true);
 
-    // Remove obvious noise (generic, not site-specific)
-    const selectors = [
+    // Always remove obvious noise (generic, not site-specific)
+    const baseSelectors = [
       'script','style','noscript',
       'nav','header','footer','aside',
       '[role="navigation"]',
@@ -471,6 +485,20 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
       '[class*="subscribe"]','[id*="subscribe"]',
       '[class*="paywall"]','[id*="paywall"]',
     ];
+
+    // Hard pass removes more "often-noise" areas if we keep failing
+    const hardSelectors = [
+      '[class*="comment"]','[id*="comment"]',
+      '[class*="newsletter"]','[id*="newsletter"]',
+      '[class*="signup"]','[id*="signup"]',
+      '[class*="share"]','[id*="share"]',
+      '[class*="social"]','[id*="social"]',
+      '[class*="related"]','[id*="related"]',
+      '[class*="recommend"]','[id*="recommend"]',
+      'form',
+    ];
+
+    const selectors = isHard ? baseSelectors.concat(hardSelectors) : baseSelectors;
 
     for (const sel of selectors) {
       const els = node.querySelectorAll(sel);
@@ -487,7 +515,7 @@ class _ImportFromUrlScreenState extends State<ImportFromUrlScreen> {
       document.title ||
       '';
 
-    const text = getCleanVisibleText();
+    const text = getCleanVisibleText(${hard ? 'true' : 'false'});
 
     return JSON.stringify({
       kind: 'text',

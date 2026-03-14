@@ -116,6 +116,10 @@ class RecipeDto {
       'pinned': pinned,
       if (favoritedAt != null) 'favoritedAt': favoritedAt!.toIso8601String(),
       if (pinnedAt != null) 'pinnedAt': pinnedAt!.toIso8601String(),
+      if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
+      if (updatedAt != null) 'updatedAt': updatedAt!.toIso8601String(),
+      if (lastViewedAt != null) 'lastViewedAt': lastViewedAt!.toIso8601String(),
+      'viewCount': viewCount,
     };
   }
 }
