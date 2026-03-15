@@ -1,9 +1,11 @@
+import 'dart:io';
 import '../backend/quant_backend.dart';
 import '../models/recipe.dart';
 import 'quant_api_client.dart';
 import 'quant_api_dtos.dart';
 import '../auth/token_store.dart';
 import 'auth_exceptions.dart';
+
 
 /// HTTP-based implementation of QuantBackend that communicates with a Spring Boot backend.
 class QuantBackendHttp implements QuantBackend {
@@ -97,6 +99,28 @@ class QuantBackendHttp implements QuantBackend {
         sourceUrl: sourceUrl,
       );
       final dto = await _apiClient.importRecipeFromText(request);
+      return _dtoToRecipe(dto);
+    });
+  }
+
+  @override
+  Future<Recipe> importRecipeFromImage(File imageFile) {
+    return _guardAuth(() async {
+      final dto = await _apiClient.importRecipeFromImage(imageFile);
+      return _dtoToRecipe(dto);
+    });
+  }
+
+  @override
+  Future<Recipe> importRecipeFromFile(
+      List<int> bytes,
+      String filename,
+      ) {
+    return _guardAuth(() async {
+      final dto = await _apiClient.importRecipeFromFile(
+        bytes,
+        filename,
+      );
       return _dtoToRecipe(dto);
     });
   }

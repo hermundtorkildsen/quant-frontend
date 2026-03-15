@@ -4,6 +4,8 @@ import '../features/calculators/screens/calculators_screen.dart';
 import '../models/recipe.dart';
 import 'import_recipe_screen.dart';
 import 'recipe_edit_screen.dart';
+import 'import_from_image_screen.dart';
+import 'import_from_file_screen.dart';
 
 class CreateRecipeScreen extends StatelessWidget {
   const CreateRecipeScreen({super.key});
@@ -99,10 +101,30 @@ class CreateRecipeScreen extends StatelessWidget {
               const SizedBox(height: 12),
 
               _CreateActionCard(
+                icon: Icons.upload_file_outlined,
+                title: 'Last opp fil',
+                subtitle: 'Last opp PDF, Word eller tekstfil.',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const ImportFromFileScreen(),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+
+              _CreateActionCard(
                 icon: Icons.image_outlined,
                 title: 'Importer fra bilde',
-                subtitle: 'Kommer snart.',
-                onTap: null,
+                subtitle: 'Velg et bilde og importer oppskriften.',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const ImportFromImageScreen(),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 12),
 

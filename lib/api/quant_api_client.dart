@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import 'quant_api_dtos.dart';
@@ -268,6 +269,72 @@ class QuantApiClient {
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception(
         'Failed to import recipe: ${response.statusCode} ${response.reasonPhrase}',
+      );
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    return RecipeDto.fromJson(json);
+  }
+
+  Future<RecipeDto> importRecipeFromImage(File imageFile) async {
+    final uri = Uri.parse('$baseUrl/api/recipes/import-image');
+
+    final request = http.MultipartRequest('POST', uri);
+
+    final headers = await _authHeaders();
+    request.headers.addAll(headers);
+
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'image',
+        imageFile.path,
+      ),
+    );
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    _throwIfUnauthorized(response);
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception(
+        'Failed to import recipe image: ${response.statusCode} ${response.reasonPhrase}',
+      );
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    return RecipeDto.fromJson(json);
+  }
+
+  /// Import a recipe from file (pdf, docx, txt)
+  ///
+  /// POST /api/recipes/import-file
+  Future<RecipeDto> importRecipeFromFile(List<int> bytes, String filename) async {
+    final uri = Uri.parse('$baseUrl/api/recipes/import-file');
+
+    final request = http.MultipartRequest('POST', uri);
+
+    final token = await _tokenProvider();
+    if (token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: filename,
+      ),
+    );
+
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
+
+    _throwIfUnauthorized(response);
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception(
+        'Failed to import file: ${response.statusCode} ${response.reasonPhrase}',
       );
     }
 

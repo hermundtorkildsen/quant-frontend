@@ -9,6 +9,8 @@ import '../api/quant_http_backend.dart';
 
 import '../auth/token_store.dart';
 
+import 'dart:io';
+
 /// High-level backend abstraction for the Quant app.
 ///
 /// In production this will talk to a real HTTP API / Java backend.
@@ -27,6 +29,11 @@ abstract class QuantBackend {
   /// Import a recipe from raw free text (and optional source URL).
   /// In production this would call an AI/parse endpoint on the backend.
   Future<Recipe> importRecipeFromText(String rawText, {String? sourceUrl});
+  Future<Recipe> importRecipeFromImage(File imageFile);
+  Future<Recipe> importRecipeFromFile(
+      List<int> bytes,
+      String filename,
+      );
   Future<int> getInboxCount();
   Future<List<Map<String, dynamic>>> getInbox();
   Future<Recipe> acceptShare(String shareId);
@@ -69,6 +76,19 @@ class QuantBackendMock implements QuantBackend {
     // Parse the recipe but don't save it yet - let the user review/edit first.
     // The UI will call saveRecipe() explicitly after user confirms.
     return await mockImportFromText(rawText, sourceUrl: sourceUrl?.trim());
+  }
+
+  @override
+  Future<Recipe> importRecipeFromImage(File imageFile) {
+    throw UnimplementedError('importRecipeFromImage not implemented in mock');
+  }
+
+  @override
+  Future<Recipe> importRecipeFromFile(
+      List<int> bytes,
+      String filename,
+      ) {
+    throw UnimplementedError('importRecipeFromFile not implemented in mock');
   }
 
   @override

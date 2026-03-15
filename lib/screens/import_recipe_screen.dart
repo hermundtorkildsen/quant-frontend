@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'import_from_text_screen.dart';
 import 'import_from_url_screen.dart';
+import 'import_from_image_screen.dart';
 
 /// Screen for importing recipes. Shows tabs only when no import method is preselected.
 class ImportRecipeScreen extends StatefulWidget {
@@ -24,7 +25,7 @@ class _ImportRecipeScreenState extends State<ImportRecipeScreen>
   void initState() {
     super.initState();
     if (widget.initialTab == null) {
-      _tabController = TabController(length: 2, vsync: this);
+      _tabController = TabController(length: 3, vsync: this);
     }
   }
 
@@ -58,6 +59,7 @@ class _ImportRecipeScreenState extends State<ImportRecipeScreen>
           tabs: const [
             Tab(text: 'Fra tekst'),
             Tab(text: 'Fra URL'),
+            Tab(text: 'Fra bilde'),
           ],
         ),
       ),
@@ -66,6 +68,7 @@ class _ImportRecipeScreenState extends State<ImportRecipeScreen>
         children: const [
           ImportFromTextScreen(embedded: true),
           ImportFromUrlScreen(initialUrl: '', embedded: true),
+          ImportFromImageScreen(),
         ],
       ),
     );
